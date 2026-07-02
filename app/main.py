@@ -6,9 +6,14 @@ from app.services.servicenow import (
 from app.analysis.correlator import analyze_outage
 from app.analysis.correlator import CAUSE_KEY
 from app.analysis.correlator import NOTIFY_KEY
+from app.menu import CONTINUE, show_startup_menu
 
 
 def run_analysis():
+    if show_startup_menu() != CONTINUE:
+        print("Exiting Network Outage Analyzer.")
+        return
+
     lat, lon = 29.7604, -95.3698
     percent_down = .90  # simulate 90% outage
 

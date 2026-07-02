@@ -28,3 +28,8 @@ SERVICENOW_NOTE_FIELD=work_notes
 ```sh
 python run.py
 ```
+
+On startup, the app shows a menu where you can view, add, or remove IP
+addresses before continuing to the outage analysis. The list is stored in
+`ip_addresses.json`, which is created automatically the first time you add an
+address.
