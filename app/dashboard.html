@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SignalWatch | Network overview</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <style>
+    :root { --ink:#10233f; --muted:#718096; --line:#e7edf4; --blue:#1769e0; --blue-dark:#104fae; --panel:#fff; --bg:#f4f7fb; --green:#23b47e; --orange:#f2a44a; }
+    * { box-sizing:border-box; } body { margin:0; font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--ink); background:var(--bg); }
+    button,input { font:inherit; } .topbar { height:72px; padding:0 42px; display:flex; align-items:center; justify-content:space-between; background:#fff; border-bottom:1px solid var(--line); }
+    .brand { display:flex; align-items:center; gap:11px; font-size:19px; font-weight:750; letter-spacing:-.5px; }.mark { width:31px;height:31px;border-radius:9px;background:linear-gradient(135deg,#2178ed,#1154c4);display:grid;place-items:center;color:white;font-size:18px; box-shadow:0 5px 12px #1769e044; }
+    .top-right { display:flex;align-items:center;gap:20px;color:#60718a;font-size:14px }.live { display:flex;align-items:center;gap:7px;font-weight:650;color:#42617d }.pulse {width:8px;height:8px;border-radius:50%;background:#26bc82;box-shadow:0 0 0 4px #26bc8222}.avatar{width:32px;height:32px;border-radius:50%;background:#dfe9f9;display:grid;place-items:center;font-size:13px;color:#245089;font-weight:700}
+    main { max-width:1440px;margin:auto;padding:36px 42px 48px; } .eyebrow{color:#657895;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:7px}.title-row{display:flex;justify-content:space-between;align-items:end;margin-bottom:27px}.title-row h1{font-size:30px;letter-spacing:-1px;margin:0}.title-row p{margin:7px 0 0;color:var(--muted)}.updated{font-size:13px;color:#718096;margin-bottom:3px}
+    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-bottom:24px}.stat{background:#fff;border:1px solid var(--line);border-radius:15px;padding:19px 21px;min-height:112px}.stat-label{color:#718096;font-size:13px;font-weight:600}.stat-number{font-size:29px;letter-spacing:-1.2px;font-weight:750;margin-top:8px}.stat-sub{font-size:12px;color:#7890a8;margin-left:7px}.status-chip{color:#16825a;background:#e8faf2;border-radius:20px;padding:4px 9px;font-size:12px;font-weight:700;float:right}
+    .layout {display:grid;grid-template-columns:minmax(345px,.82fr) minmax(500px,1.35fr);gap:24px;align-items:start}.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 2px 4px #243b5605}.card-header{padding:21px 22px 17px;display:flex;align-items:flex-start;justify-content:space-between}.card-header h2{font-size:17px;margin:0;letter-spacing:-.3px}.card-header p{font-size:13px;color:var(--muted);margin:5px 0 0}.device-count{background:#f0f4fa;color:#61738d;font-size:12px;font-weight:700;border-radius:99px;padding:4px 8px}
+    .add-form{display:flex;gap:8px;padding:0 22px 18px}.add-form input{min-width:0;flex:1;border:1px solid #d7e1ee;border-radius:9px;padding:11px 12px;outline:none;color:var(--ink)}.add-form input:focus{border-color:#4b91ed;box-shadow:0 0 0 3px #2779df18}.btn{border:0;border-radius:9px;padding:10px 13px;font-weight:700;cursor:pointer}.btn-add{background:var(--blue);color:#fff}.btn-add:hover{background:var(--blue-dark)}.device-list{border-top:1px solid var(--line);min-height:272px}.device{display:flex;align-items:center;gap:12px;padding:15px 22px;border-bottom:1px solid var(--line)}.device:last-child{border-bottom:0}.device-icon{width:32px;height:32px;border-radius:9px;background:#e9f2ff;color:#1769e0;display:grid;place-items:center;font-size:15px}.device-info{flex:1;min-width:0}.device-name{font-weight:680;font-size:14px}.device-ip{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:#73849c;margin-top:2px}.remove{color:#cf4d5f;background:#fff;border:1px solid #f0d9dd;border-radius:7px;padding:6px 9px;cursor:pointer;font-size:12px;font-weight:700}.remove:hover{background:#fff4f5}.empty{padding:54px 22px;text-align:center;color:#8493a7;font-size:14px}.error{padding:0 22px 15px;color:#c44253;font-size:13px;display:none}
+    .map-card{overflow:hidden}.map-head{padding-bottom:12px}.map-actions{display:flex;gap:9px;align-items:center}.toggle{display:flex;align-items:center;gap:8px;color:#58708c;font-size:13px;font-weight:650;white-space:nowrap}.switch{width:37px;height:21px;border-radius:999px;background:#cbd6e4;position:relative;cursor:pointer;border:0}.switch:after{content:"";position:absolute;width:15px;height:15px;border-radius:50%;background:white;top:3px;left:3px;box-shadow:0 1px 3px #243b5655;transition:.18s}.switch.on{background:#1769e0}.switch.on:after{left:19px}.focus-btn{background:#eef5ff;color:#1769d5;font-size:12px}
+    .map-wrap{position:relative;height:408px;border-top:1px solid var(--line);background:#d8edf8}.world-map{width:100%;height:100%;z-index:1}.map-legend{position:absolute;z-index:500;right:18px;bottom:28px;background:#fffffff0;border:1px solid #dae5ef;border-radius:8px;padding:10px 12px;font-size:11px;color:#64778e;box-shadow:0 2px 9px #243b5620;display:none}.weather-on .map-legend{display:block}.legend-line{height:6px;width:106px;border-radius:9px;background:linear-gradient(90deg,#44c6ed,#6a8cf0,#d65dc6,#f1593c);margin:7px 0 4px}.leaflet-control-attribution{font-size:10px!important}.leaflet-popup-content{font:13px Inter,ui-sans-serif,system-ui,sans-serif;color:#233852}.weather-marker{background:#1769e0;border:3px solid #fff;border-radius:50%;box-shadow:0 1px 5px #1f487a88;width:14px;height:14px}
+    @media(max-width:920px){.layout{grid-template-columns:1fr}.stats{grid-template-columns:1fr}.topbar{padding:0 20px}main{padding:28px 20px}.updated{display:none}.map-wrap{height:350px}}@media(max-width:520px){.top-right .live{display:none}.title-row{align-items:start}.add-form{flex-direction:column}.btn-add{width:100%}.map-actions .focus-btn{display:none}}
+  </style>
+</head>
+<body>
+  <header class="topbar"><div class="brand"><span class="mark">⌁</span> SignalWatch</div><div class="top-right"><span class="live"><i class="pulse"></i> System operational</span><span>Network overview</span><span class="avatar">MO</span></div></header>
+  <main>
+    <div class="title-row"><div><div class="eyebrow">Operations center</div><h1>Network dashboard</h1><p>Monitor your device fleet and local weather conditions from one place.</p></div><div class="updated">Last updated <strong id="lastUpdated">just now</strong></div></div>
+    <section class="stats"><div class="stat"><span class="status-chip">Live</span><div class="stat-label">Monitored devices</div><div class="stat-number" id="statDevices">0</div></div><div class="stat"><div class="stat-label">Network status</div><div class="stat-number" style="color:#16825a">Healthy <span class="stat-sub">all systems ready</span></div></div><div class="stat"><div class="stat-label">Weather monitoring</div><div class="stat-number">Global view <span class="stat-sub">map available</span></div></div></section>
+    <section class="layout">
+      <article class="card"><div class="card-header"><div><h2>Your devices</h2><p>Addresses used by the outage analyzer.</p></div><span class="device-count" id="deviceCount">0 devices</span></div><form class="add-form" id="addForm"><input id="ipInput" aria-label="IP address" placeholder="Enter IP address, e.g. 192.168.1.10" required><button class="btn btn-add" type="submit">+ Add device</button></form><div class="error" id="error"></div><div class="device-list" id="deviceList"><div class="empty">Loading your devices…</div></div></article>
+      <article class="card map-card" id="mapCard"><div class="card-header map-head"><div><h2>Global weather map</h2><p>Worldwide conditions and device context</p></div><div class="map-actions"><button class="btn focus-btn" id="focusButton" type="button">Global view</button><label class="toggle">Weather layer <button class="switch" id="weatherToggle" type="button" role="switch" aria-checked="false"></button></label></div></div>
+        <div class="map-wrap"><div id="worldMap" class="world-map" aria-label="Interactive world map"></div><div class="map-legend">Precipitation intensity<div class="legend-line"></div><span>Light</span><span style="float:right">Heavy</span></div></div>
+      </article>
+    </section>
+  </main>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script>
+    const list = document.getElementById('deviceList'), count = document.getElementById('deviceCount'), stat = document.getElementById('statDevices'), error = document.getElementById('error');
+    const escapeHtml = value => value.replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]));
+    function render(devices) { const n=devices.length; count.textContent=`${n} device${n===1?'':'s'}`; stat.textContent=n; list.innerHTML = n ? devices.map((ip,i)=>`<div class="device"><span class="device-icon">▣</span><div class="device-info"><div class="device-name">Device ${String(i+1).padStart(2,'0')}</div><div class="device-ip">${escapeHtml(ip)}</div></div><button class="remove" data-ip="${escapeHtml(ip)}">Remove</button></div>`).join('') : '<div class="empty">No devices yet. Add an IP address to begin monitoring.</div>'; }
+    function showError(message='') { error.textContent=message; error.style.display=message?'block':'none'; }
+    async function load() { try { const r=await fetch('/api/devices'); const data=await r.json(); render(data.devices); } catch { showError('Unable to load devices. Please refresh the page.'); } }
+    document.getElementById('addForm').addEventListener('submit', async event => { event.preventDefault(); const input=document.getElementById('ipInput'); showError(); const r=await fetch('/api/devices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ip_address:input.value})}); const data=await r.json(); if(!r.ok){showError(data.detail || 'Could not add device.');return;} input.value=''; render(data.devices); document.getElementById('lastUpdated').textContent='just now'; });
+    list.addEventListener('click', async event => { const button=event.target.closest('.remove'); if(!button)return; const r=await fetch(`/api/devices/${encodeURIComponent(button.dataset.ip)}`,{method:'DELETE'}); const data=await r.json(); if(!r.ok){showError(data.detail || 'Could not remove device.');return;} showError(); render(data.devices); document.getElementById('lastUpdated').textContent='just now'; });
+    const worldMap = L.map('worldMap', { worldCopyJump:true, minZoom:2, maxZoom:18 }).setView([20, 0], 2);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' }).addTo(worldMap);
+    const sites = [[40.7128,-74.006,'New York'],[51.5072,-.1276,'London'],[25.2048,55.2708,'Dubai'],[35.6762,139.6503,'Tokyo'],[-33.8688,151.2093,'Sydney']];
+    sites.forEach(([lat,lng,name]) => L.marker([lat,lng], { icon:L.divIcon({className:'', html:'<div class="weather-marker"></div>', iconSize:[14,14], iconAnchor:[7,7]}) }).addTo(worldMap).bindPopup(`<strong>${name}</strong><br>Weather monitoring point`));
+    let radarLayer;
+    const radarStatus = document.querySelector('.map-legend');
+    async function showLiveRadar() {
+      radarStatus.innerHTML = '<strong>Loading live radar…</strong><br>Retrieving the latest available frame.';
+      const response = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+      if (!response.ok) throw new Error('Radar service unavailable');
+      const data = await response.json();
+      const frames = data.radar && data.radar.past;
+      const latest = frames && frames[frames.length - 1];
+      if (!data.host || !latest || !latest.path) throw new Error('No current radar frame');
+      radarLayer = L.tileLayer(`${data.host}${latest.path}/256/{z}/{x}/{y}/2/1_1.png`, { maxZoom:7, opacity:.68, attribution:'Weather radar &copy; <a href="https://www.rainviewer.com/">RainViewer</a>' });
+      radarLayer.addTo(worldMap);
+      radarStatus.innerHTML = '<strong>Live precipitation radar</strong><br>Latest frame from RainViewer.';
+    }
+    const toggle=document.getElementById('weatherToggle'), map=document.getElementById('mapCard');
+    toggle.addEventListener('click', async () => {
+      if (toggle.disabled) return;
+      const on = !toggle.classList.contains('on');
+      if (!on) { toggle.classList.remove('on'); map.classList.remove('weather-on'); toggle.setAttribute('aria-checked','false'); if (radarLayer) worldMap.removeLayer(radarLayer); return; }
+      toggle.disabled = true; toggle.classList.add('on'); map.classList.add('weather-on'); toggle.setAttribute('aria-checked','true');
+      try { if (radarLayer) radarLayer.addTo(worldMap); else await showLiveRadar(); }
+      catch { toggle.classList.remove('on'); map.classList.remove('weather-on'); toggle.setAttribute('aria-checked','false'); radarStatus.textContent='Live radar is temporarily unavailable.'; }
+      finally { toggle.disabled = false; }
+    }); document.getElementById('focusButton').addEventListener('click',()=>worldMap.fitWorld({padding:[16,16]})); load();
+  </script>
+</body>
+</html>

@@ -35,6 +35,18 @@ addresses before continuing to the outage analysis. The list is stored in
 `ip_addresses.json`, which is created automatically the first time you add an
 address.
 
+## Dashboard
+
+Launch the browser dashboard with:
+
+```sh
+uvicorn app.dashboard:app --reload
+```
+
+Then open `http://127.0.0.1:8000`. The dashboard shows the same persisted
+device list used by the analyzer, lets you add or remove IP addresses, and
+includes a U.S.-focused weather map with an optional weather overlay.
+
 
 # Network Outage Analyzer
 
