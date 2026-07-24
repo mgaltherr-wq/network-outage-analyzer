@@ -12,6 +12,11 @@ Create a `.env` file with:
 ```sh
 WEATHER_API_KEY=your_openweather_api_key
 
+# SNMP location discovery (SNMPv2c by default)
+SNMP_COMMUNITY=your_read_only_community
+SNMP_VERSION=2c
+SNMP_TIMEOUT_SECONDS=2
+
 SERVICENOW_INSTANCE_URL=https://dev374413.service-now.com
 SERVICENOW_USERNAME=your_servicenow_username
 SERVICENOW_PASSWORD=your_servicenow_password

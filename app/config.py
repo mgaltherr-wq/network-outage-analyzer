@@ -5,6 +5,11 @@ load_dotenv()
 
 WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")
 
+SNMP_COMMUNITY = os.getenv("SNMP_COMMUNITY", "public")
+SNMP_VERSION = os.getenv("SNMP_VERSION", "2c")
+SNMP_TIMEOUT_SECONDS = float(os.getenv("SNMP_TIMEOUT_SECONDS", "2"))
+
+
 SERVICENOW_INSTANCE_URL = os.getenv(
     "SERVICENOW_INSTANCE_URL",
     "https://dev374413.service-now.com",

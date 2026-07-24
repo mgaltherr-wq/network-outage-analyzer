@@ -1,3 +1,4 @@
+import asyncio
 import json
 from ipaddress import ip_address
 from pathlib import Path
@@ -136,26 +137,42 @@ def assign_location(devices: List[Dict], ip_address_value: str, location: str) -
     return updated, changed
 
 
-def lookup_location_snmp(ip_address_value: str, community: str = "public", oid: str = "1.3.6.1.2.1.1.6.0", timeout: int = 2) -> Optional[str]:
+def lookup_location_snmp(ip_address_value: str, community: str = "public", oid: str = "1.3.6.1.2.1.1.6.0", timeout: float = 2, version: str = "2c") -> Optional[str]:
     """Attempt to query sysLocation via SNMP. Returns a string or None."""
     try:
-        from pysnmp.hlapi import CommunityData, ContextData, ObjectIdentity, ObjectType, SnmpEngine, UdpTransportTarget, getCmd
+        from pysnmp.hlapi.v3arch.asyncio import (
+            CommunityData,
+            ContextData,
+            ObjectIdentity,
+            ObjectType,
+            SnmpEngine,
+            UdpTransportTarget,
+            get_cmd,
+        )
     except Exception:
         return None
 
+    async def query():
+        engine = SnmpEngine()
+        try:
+            target = await UdpTransportTarget.create(
+                (ip_address_value, 161), timeout=timeout, retries=0
+            )
+            error_indication, error_status, _, var_binds = await get_cmd(
+                engine,
+                CommunityData(community, mpModel=0 if version == "1" else 1),
+                target,
+                ContextData(),
+                ObjectType(ObjectIdentity(oid)),
+            )
+            if error_indication or error_status or not var_binds:
+                return None
+            location = var_binds[0][1].prettyPrint().strip()
+            return location or None
+        finally:
+            engine.close_dispatcher()
+
     try:
-        iterator = getCmd(
-            SnmpEngine(),
-            CommunityData(community, mpModel=0),
-            UdpTransportTarget((ip_address_value, 161), timeout=timeout, retries=0),
-            ContextData(),
-            ObjectType(ObjectIdentity(oid)),
-        )
-        error_indication, error_status, error_index, var_binds = next(iterator)
-        if error_indication or error_status:
-            return None
-        for var_bind in var_binds:
-            return str(var_bind[1])
+        return asyncio.run(query())
     except Exception:
         return None
-    return None

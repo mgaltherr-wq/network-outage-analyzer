@@ -35,16 +35,34 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script>
     const list = document.getElementById('deviceList'), count = document.getElementById('deviceCount'), stat = document.getElementById('statDevices'), error = document.getElementById('error');
-    const escapeHtml = value => value.replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]));
-    function render(devices) { const n=devices.length; count.textContent=`${n} device${n===1?'':'s'}`; stat.textContent=n; list.innerHTML = n ? devices.map((device,i)=>{ const ip = device.ip_address || device; const location = device.location ? `<div class="device-ip">${escapeHtml(device.location)}</div>` : ''; return `<div class="device"><span class="device-icon">▣</span><div class="device-info"><div class="device-name">Device ${String(i+1).padStart(2,'0')}</div><div class="device-ip">${escapeHtml(ip)}</div>${location}</div><button class="remove" data-ip="${escapeHtml(ip)}">Remove</button></div>`; }).join('') : '<div class="empty">No devices yet. Add an IP address to begin monitoring.</div>'; }
+    const escapeHtml = value => String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]));
+    function render(devices) { const n=devices.length; count.textContent=`${n} device${n===1?'':'s'}`; stat.textContent=n; list.innerHTML = n ? devices.map((device,i)=>{ const ip = device.ip_address || device; const location = device.location ? `<div class="device-ip">${escapeHtml(device.location)}</div>` : ''; return `<div class="device"><span class="device-icon">▣</span><div class="device-info"><div class="device-name">Device ${String(i+1).padStart(2,'0')}</div><div class="device-ip">${escapeHtml(ip)}</div>${location}</div><button class="remove" data-ip="${escapeHtml(ip)}">Remove</button></div>`; }).join('') : '<div class="empty">No devices yet. Add an IP address to begin monitoring.</div>'; updateDeviceMarkers(); }
     function showError(message='') { error.textContent=message; error.style.display=message?'block':'none'; }
-    async function load() { try { const r=await fetch('/api/devices'); const data=await r.json(); render(data.devices); } catch { showError('Unable to load devices. Please refresh the page.'); } }
+    async function refreshSnmp() { try { const r=await fetch('/api/devices/refresh-snmp',{method:'POST'}); if(!r.ok)return; const data=await r.json(); render(data.devices); if(data.updated.length)document.getElementById('lastUpdated').textContent='just now'; } catch {} }
+    async function load() { try { const r=await fetch('/api/devices'); const data=await r.json(); render(data.devices); refreshSnmp(); } catch { showError('Unable to load devices. Please refresh the page.'); } }
     document.getElementById('addForm').addEventListener('submit', async event => { event.preventDefault(); const input=document.getElementById('ipInput'); const locationInput=document.getElementById('locationInput'); showError(); const payload = { ip_address: input.value, location: locationInput.value.trim() }; const r=await fetch('/api/devices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const data=await r.json(); if(!r.ok){showError(data.detail || 'Could not add device.');return;} input.value=''; locationInput.value=''; render(data.devices); document.getElementById('lastUpdated').textContent='just now'; });
     list.addEventListener('click', async event => { const button=event.target.closest('.remove'); if(!button)return; const r=await fetch(`/api/devices/${encodeURIComponent(button.dataset.ip)}`,{method:'DELETE'}); const data=await r.json(); if(!r.ok){showError(data.detail || 'Could not remove device.');return;} showError(); render(data.devices); document.getElementById('lastUpdated').textContent='just now'; });
     const worldMap = L.map('worldMap', { worldCopyJump:true, minZoom:2, maxZoom:18 }).setView([20, 0], 2);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' }).addTo(worldMap);
-    const sites = [[40.7128,-74.006,'New York'],[51.5072,-.1276,'London'],[25.2048,55.2708,'Dubai'],[35.6762,139.6503,'Tokyo'],[-33.8688,151.2093,'Sydney']];
-    sites.forEach(([lat,lng,name]) => L.marker([lat,lng], { icon:L.divIcon({className:'', html:'<div class="weather-marker"></div>', iconSize:[14,14], iconAnchor:[7,7]}) }).addTo(worldMap).bindPopup(`<strong>${name}</strong><br>Weather monitoring point`));
+    const deviceMarkerLayer = L.layerGroup().addTo(worldMap);
+    async function updateDeviceMarkers() {
+      try {
+        const response = await fetch('/api/device-locations');
+        if (!response.ok) return;
+        const data = await response.json();
+        deviceMarkerLayer.clearLayers();
+        data.locations.forEach(site => {
+          const region = [site.state, site.country].filter(Boolean).join(', ');
+          const addresses = site.devices.map(escapeHtml).join('<br>');
+          const detail = region ? `<br>${escapeHtml(region)}` : '';
+          L.marker([site.latitude, site.longitude], { icon:L.divIcon({className:'', html:'<div class="weather-marker"></div>', iconSize:[14,14], iconAnchor:[7,7]}) })
+            .addTo(deviceMarkerLayer)
+            .bindPopup(`<strong>${escapeHtml(site.location)}</strong>${detail}<br><br>${addresses}`);
+        });
+      } catch {
+        // The device list remains usable if geocoding is temporarily unavailable.
+      }
+    }
     let radarLayer;
     const radarStatus = document.querySelector('.map-legend');
     async function showLiveRadar() {
