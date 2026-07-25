@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 import app.ip_inventory as inventory_module
 from app.config import SNMP_COMMUNITY, SNMP_TIMEOUT_SECONDS, SNMP_VERSION
+from app.services.reachability import check_devices
 from app.services.weather import geocode_location
 
 
@@ -93,7 +94,20 @@ def list_device_locations():
         except Exception:
             coordinates = None
         if coordinates:
-            markers.append({**group, **coordinates})
+            reachable, unreachable = check_devices(group["devices"])
+            if not unreachable:
+                status = "up"
+            elif not reachable:
+                status = "down"
+            else:
+                status = "partial"
+            markers.append({
+                **group,
+                **coordinates,
+                "status": status,
+                "reachable": len(reachable),
+                "unreachable": len(unreachable),
+            })
 
     return {"locations": markers}
 
