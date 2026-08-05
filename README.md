@@ -27,7 +27,31 @@ SERVICENOW_INCIDENT_NUMBER=INC0010001
 
 # Optional. Use comments if you want a customer-visible comment.
 SERVICENOW_NOTE_FIELD=work_notes
+
+# Optional. Enables the Cloudflare Radar network-outage check on the dashboard.
+# Without it, the network signal reports "Unknown" confidence instead of
+# checking for a verified internet outage in the area.
+CLOUDFLARE_API_TOKEN=your_cloudflare_api_token
 ```
+
+## Outage confidence breakdown
+
+When a location on the dashboard map crosses 90% of its devices unreachable,
+the dashboard checks three independent sources and reports a confidence level
+for each as a possible cause:
+
+* **Weather** — via the existing OpenWeather integration.
+* **Network outage** — via [Cloudflare Radar](https://radar.cloudflare.com/outage-center),
+  a free API that reports verified internet outages by country. Requires
+  `CLOUDFLARE_API_TOKEN`.
+* **Power outage** — via [ODIN](https://ornl.opendatasoft.com/explore/dataset/odin-real-time-outages-county/)
+  (DOE / Oak Ridge National Lab), a free, no-key-required, county-level power
+  outage dataset. Coordinates are reverse-geocoded to a US county using the
+  free FCC Census Block API.
+
+Each source reports "High" (detected), "Low" (checked, nothing detected), or
+"Unknown" (source unavailable/unconfigured) independently — they aren't
+blended into a single score.
 
 ## Run
 

@@ -57,9 +57,10 @@
           const detail = region ? `<br>${escapeHtml(region)}` : '';
           const statusText = site.status === 'down' ? 'Site unreachable' : site.status === 'partial' ? 'Partial outage' : 'All devices reachable';
           const availability = `${site.reachable}/${site.devices.length} devices reachable`;
+          const confidence = site.confidence ? `<br><br><strong>Possible cause</strong><br>Weather: ${escapeHtml(site.confidence.weather.confidence)} — ${escapeHtml(site.confidence.weather.detail)}<br>Network outage: ${escapeHtml(site.confidence.network.confidence)} — ${escapeHtml(site.confidence.network.detail)}<br>Power outage: ${escapeHtml(site.confidence.power.confidence)} — ${escapeHtml(site.confidence.power.detail)}` : '';
           L.marker([site.latitude, site.longitude], { icon:L.divIcon({className:'', html:`<div class="weather-marker ${site.status}"></div>`, iconSize:[14,14], iconAnchor:[7,7]}) })
             .addTo(deviceMarkerLayer)
-            .bindPopup(`<strong>${escapeHtml(site.location)}</strong>${detail}<br><br><strong>${statusText}</strong><br>${availability}<br><br>${addresses}`);
+            .bindPopup(`<strong>${escapeHtml(site.location)}</strong>${detail}<br><br><strong>${statusText}</strong><br>${availability}${confidence}<br><br>${addresses}`);
         });
       } catch {
         // The device list remains usable if geocoding is temporarily unavailable.

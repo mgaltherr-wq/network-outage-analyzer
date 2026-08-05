@@ -1,6 +1,7 @@
 certifi==2026.6.17
 charset-normalizer==3.4.9
 fastapi==0.139.0
+httpx2==2.9.1
 idna==3.18
 python-dotenv==1.2.2
 pysnmp==7.1.27

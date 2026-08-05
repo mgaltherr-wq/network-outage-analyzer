@@ -8,9 +8,12 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 import app.ip_inventory as inventory_module
+from app.analysis import correlator
 from app.config import SNMP_COMMUNITY, SNMP_TIMEOUT_SECONDS, SNMP_VERSION
+from app.services.network_outages import check_network_outage
+from app.services.power_outages import check_power_outage
 from app.services.reachability import check_devices
-from app.services.weather import geocode_location
+from app.services.weather import geocode_location, get_weather
 
 
 add_device = inventory_module.add_device
@@ -74,6 +77,31 @@ def refresh_device_locations_from_snmp():
     return {"devices": devices, "updated": updated_addresses}
 
 
+def _assess_location_confidence(coordinates):
+    """Best-effort weather/network/power confidence breakdown for a location.
+
+    Each external check is isolated so one flaky source doesn't take down the
+    others; returns None only if weather (the one source we already depend
+    on elsewhere) is unavailable.
+    """
+    try:
+        weather = get_weather(coordinates["latitude"], coordinates["longitude"])
+    except Exception:
+        return None
+
+    try:
+        network_result = check_network_outage(coordinates.get("country"))
+    except Exception:
+        network_result = {"checked": False, "detected": False, "detail": "Network outage check failed"}
+
+    try:
+        power_result = check_power_outage(coordinates["latitude"], coordinates["longitude"])
+    except Exception:
+        power_result = {"checked": False, "detected": False, "detail": "Power outage check failed"}
+
+    return correlator.assess_outage_sources(weather, network_result, power_result)
+
+
 @app.get("/api/device-locations")
 def list_device_locations():
     grouped = {}
@@ -101,13 +129,22 @@ def list_device_locations():
                 status = "down"
             else:
                 status = "partial"
-            markers.append({
+
+            marker = {
                 **group,
                 **coordinates,
                 "status": status,
                 "reachable": len(reachable),
                 "unreachable": len(unreachable),
-            })
+            }
+
+            percent_down = len(unreachable) / len(group["devices"])
+            if percent_down >= correlator.OUTAGE_THRESHOLD:
+                confidence = _assess_location_confidence(coordinates)
+                if confidence:
+                    marker["confidence"] = confidence
+
+            markers.append(marker)
 
     return {"locations": markers}
 
