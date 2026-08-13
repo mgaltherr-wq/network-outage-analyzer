@@ -43,6 +43,18 @@ def _assess_external_source(source_result):
         return {"confidence": "Unknown", "detail": source_result.get("detail", "")}
 
     if source_result.get("detected"):
+        # If the external source reports a magnitude (e.g. meters_affected for
+        # power outages), use thresholds to calibrate High/Medium/Low instead
+        # of treating any detection as uniformly High. This reduces false
+        # positives for small, localized events.
+        meters = source_result.get("meters_affected")
+        if meters is not None:
+            if meters < 100:
+                return {"confidence": "Low", "detail": source_result.get("detail", "")}
+            if meters < 1000:
+                return {"confidence": "Medium", "detail": source_result.get("detail", "")}
+            return {"confidence": "High", "detail": source_result.get("detail", "")}
+
         return {"confidence": "High", "detail": source_result.get("detail", "")}
 
     return {"confidence": "Low", "detail": source_result.get("detail", "")}

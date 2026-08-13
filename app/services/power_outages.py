@@ -58,11 +58,13 @@ def check_power_outage(lat, lon):
         return {
             "checked": True,
             "detected": False,
+            "meters_affected": 0,
             "detail": f"No significant power outages reported in {county} County",
         }
 
     return {
         "checked": True,
         "detected": True,
+        "meters_affected": int(meters_affected),
         "detail": f"{meters_affected} meters without power in {county} County",
     }

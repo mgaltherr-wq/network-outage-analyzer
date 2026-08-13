@@ -40,6 +40,17 @@ class AssessOutageSourcesTests(unittest.TestCase):
         self.assertEqual(result["network"], {"confidence": "High", "detail": "Regional ISP outage"})
         self.assertEqual(result["power"], {"confidence": "High", "detail": "Regional ISP outage"})
 
+    def test_power_confidence_scales_with_meters_affected(self):
+        weather = {"condition": "clear sky", "wind_mph": 2, "temp_f": 70}
+
+        small = {"checked": True, "detected": True, "meters_affected": 18, "detail": "18 meters without power"}
+        medium = {"checked": True, "detected": True, "meters_affected": 500, "detail": "500 meters without power"}
+        large = {"checked": True, "detected": True, "meters_affected": 5000, "detail": "5000 meters without power"}
+
+        self.assertEqual(assess_outage_sources(weather, small, small)["power"]["confidence"], "Low")
+        self.assertEqual(assess_outage_sources(weather, medium, medium)["power"]["confidence"], "Medium")
+        self.assertEqual(assess_outage_sources(weather, large, large)["power"]["confidence"], "High")
+
     def test_low_confidence_when_checked_but_not_detected(self):
         weather = {"condition": "clear sky", "wind_mph": 2, "temp_f": 70}
         clear = {"checked": True, "detected": False, "detail": "No verified outages reported"}

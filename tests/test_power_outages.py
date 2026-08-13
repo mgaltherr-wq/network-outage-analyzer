@@ -55,6 +55,7 @@ class CheckPowerOutageTests(unittest.TestCase):
         self.assertEqual(result, {
             "checked": True,
             "detected": True,
+            "meters_affected": 4200,
             "detail": "4200 meters without power in Harris County",
         })
 
@@ -72,6 +73,7 @@ class CheckPowerOutageTests(unittest.TestCase):
         self.assertEqual(result, {
             "checked": True,
             "detected": False,
+            "meters_affected": 0,
             "detail": "No significant power outages reported in Harris County",
         })
 
