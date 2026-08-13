@@ -69,12 +69,14 @@ address.
 Launch the browser dashboard with:
 
 ```sh
-uvicorn app.dashboard:app --reload
+uvicorn app.dashboard:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Then open `http://127.0.0.1:8000`. The dashboard shows the same persisted
-device list used by the analyzer, lets you add or remove IP addresses, and
-includes a U.S.-focused weather map with an optional weather overlay.
+Then open `http://127.0.0.1:8000` for local access, or from another machine
+open `http://<server-ip>:8000` (for example `http://192.168.42.234:8000`).
+The dashboard shows the same persisted device list used by the analyzer,
+lets you add or remove IP addresses, and includes a U.S.-focused weather
+map with an optional weather overlay.
 
 
 # Network Outage Analyzer
