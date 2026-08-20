@@ -4,8 +4,10 @@ from ipaddress import ip_address
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+from app.paths import migrate_legacy_file, user_data_dir
 
-DEFAULT_IP_LIST_PATH = Path(__file__).resolve().parents[1] / "ip_addresses.json"
+migrate_legacy_file("ip_addresses.json")
+DEFAULT_IP_LIST_PATH = user_data_dir() / "ip_addresses.json"
 
 
 def normalize_ip(value):

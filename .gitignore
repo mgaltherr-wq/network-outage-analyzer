@@ -5,3 +5,12 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 ip_addresses.json
+
+# PyInstaller / installer build output
+build/
+dist/
+*.spec.bak
+packaging/AppDir/
+packaging/appimagetool*
+Output/
+*.AppImage

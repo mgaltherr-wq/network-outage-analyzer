@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Network Outage Analyzer
+Comment=Monitor devices and correlate outages with weather, network, and power signals
+Exec=NetworkOutageAnalyzer
+Icon=networkoutageanalyzer
+Terminal=false
+Categories=Network;Monitor;

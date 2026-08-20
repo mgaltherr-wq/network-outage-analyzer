@@ -1,7 +1,11 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+from app.paths import migrate_legacy_file, user_data_dir
+
+ENV_PATH = user_data_dir() / ".env"
+migrate_legacy_file(".env")
+load_dotenv(dotenv_path=ENV_PATH)
 
 WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")
 

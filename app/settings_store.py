@@ -7,13 +7,13 @@ take effect in the running process.
 
 import importlib
 import os
-from pathlib import Path
 
 from dotenv import set_key, unset_key
 
 from app import config
+from app.paths import user_data_dir
 
-ENV_PATH = Path(__file__).resolve().parents[1] / ".env"
+ENV_PATH = user_data_dir() / ".env"
 
 SECRET = "secret"
 TEXT = "text"

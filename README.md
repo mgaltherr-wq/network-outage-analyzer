@@ -5,9 +5,35 @@ Checks weather conditions when a remote location has enough devices down to
 suggest a site-impacting outage. When the analysis is actionable, the app can
 append the weather assessment to a ServiceNow incident.
 
+## Download
+
+The easiest way to try this out — no Python required:
+
+* **Windows** — download `NetworkOutageAnalyzer-Setup.exe` from the
+  [latest release](https://github.com/mgaltherr-wq/network-outage-analyzer/releases/latest)
+  and run it. It installs for your user account only, so no admin rights
+  needed. It launches the dashboard and opens it in your browser automatically.
+* **Linux** — download `NetworkOutageAnalyzer-x86_64.AppImage` from the same
+  page, then:
+  ```sh
+  chmod +x NetworkOutageAnalyzer-x86_64.AppImage
+  ./NetworkOutageAnalyzer-x86_64.AppImage
+  ```
+  (The `chmod +x` is needed because most browsers don't preserve the
+  executable bit on download.) No installation step — it's a single file.
+
+Either way, the dashboard opens at `http://127.0.0.1:8000`, bound to your
+machine only (not exposed to your network). Everything below this point
+describes running from source instead, for development.
+
 ## Configuration
 
-Create a `.env` file with:
+`.env`/`ip_addresses.json` live in a per-user config directory —
+`%APPDATA%\NetworkOutageAnalyzer` on Windows, `~/.config/network-outage-analyzer`
+on Linux — not the project folder. The easiest way to set values is the
+[Settings page](#settings) (gear icon in the dashboard, or option 5 in the
+CLI menu) rather than editing the file directly. If you do want to hand-edit
+it, create/edit `.env` in that directory with:
 
 ```sh
 WEATHER_API_KEY=your_openweather_api_key
@@ -53,7 +79,7 @@ Each source reports "High" (detected), "Low" (checked, nothing detected), or
 "Unknown" (source unavailable/unconfigured) independently — they aren't
 blended into a single score.
 
-## Run
+## Run (from source)
 
 ```sh
 python run.py
@@ -61,10 +87,10 @@ python run.py
 
 On startup, the app shows a menu where you can view, add, or remove IP
 addresses before continuing to the outage analysis. The list is stored in
-`ip_addresses.json`, which is created automatically the first time you add an
-address.
+`ip_addresses.json` in the per-user config directory described above, which
+is created automatically the first time you add an address.
 
-## Dashboard
+## Dashboard (from source)
 
 Launch the browser dashboard with:
 
@@ -77,6 +103,11 @@ open `http://<server-ip>:8000` (for example `http://192.168.42.234:8000`).
 The dashboard shows the same persisted device list used by the analyzer,
 lets you add or remove IP addresses, and includes a U.S.-focused weather
 map with an optional weather overlay.
+
+Note this differs from the packaged installer, which binds to
+`127.0.0.1` only by default (see [Download](#download)) since the dashboard
+has no authentication — `--host 0.0.0.0` here is an explicit opt-in for
+intentionally monitoring devices from another machine on your network.
 
 ## Settings
 
@@ -97,6 +128,37 @@ running process — no restart required.
 > Note: the dashboard has no authentication, so anyone who can reach the
 > port can view masked settings and change them. Keep it on a trusted
 > network, and don't expose port 8000 to the public internet.
+
+## Building the installers yourself
+
+`.github/workflows/build-installers.yml` builds both installers on GitHub's
+own runners — a `windows-latest` job (PyInstaller + Inno Setup) and an
+`ubuntu-latest` job (PyInstaller + AppImage) — and, on a `v*` tag push,
+publishes both to a GitHub Release. Trigger it manually via the Actions
+tab ("Run workflow") to test the pipeline without cutting a release, or
+push a tag:
+
+```sh
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+To build locally instead:
+
+```sh
+pip install -r requirements.txt pyinstaller
+
+# Linux
+pyinstaller --distpath dist/linux packaging/linux.spec
+./dist/linux/NetworkOutageAnalyzer/NetworkOutageAnalyzer --selftest
+# then assemble an AppDir and run appimagetool — see the workflow's
+# "Assemble AppDir" / "Build AppImage" steps for the exact commands.
+
+# Windows
+pyinstaller --distpath dist\windows packaging\windows.spec
+dist\windows\NetworkOutageAnalyzer.exe --selftest
+iscc packaging\windows.iss
+```
 
 
 # Network Outage Analyzer
@@ -156,20 +218,11 @@ pip install -r requirements.txt
 ## Environment Variables
 
 This project uses environment variables to store API keys and other sensitive information.
+The simplest way to set them is the Settings page/menu described above; see
+that section for the actual per-OS file location if you'd rather edit `.env`
+by hand.
 
-Create a `.env` file in the project root:
-
-```bash
-nano .env
-```
-
-Add your OpenWeather API key:
-
-```text
-WEATHER_API_KEY=your_openweather_api_key_here
-```
-
-The `.env` file should not be committed to GitHub. It is included in `.gitignore` to keep credentials secure.
+The `.env` file should not be committed to GitHub — it's covered by `.gitignore`.
 
 ---
 
@@ -215,17 +268,22 @@ network-outage-analyzer/
 ├── app/
 │   ├── main.py
 │   ├── config.py
+│   ├── paths.py       # per-user data directory (.env, ip_addresses.json)
+│   ├── launcher.py     # packaged-app entry point (dashboard + open browser)
 │   └── services/
 │       └── weather.py
 │
+├── packaging/           # PyInstaller specs, Inno Setup script, icons
 ├── tests/
 │
 ├── run.py
 ├── requirements.txt
-├── .env              # Not committed
 ├── README.md
 └── venv/             # Local virtual environment
 ```
+
+`.env` and `ip_addresses.json` are no longer stored in the project folder —
+see [Configuration](#configuration) above.
 
 ---
 
@@ -250,7 +308,7 @@ pip install -r requirements.txt
 
 If weather data is unavailable, verify:
 
-* `.env` exists in the project root
+* `.env` exists in the per-user config directory (see [Configuration](#configuration))
 * `WEATHER_API_KEY` is set correctly
 * The API key is valid
 * Internet connectivity is available

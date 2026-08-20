@@ -17,8 +17,11 @@ class SettingsStoreTests(unittest.TestCase):
         self.env_path.write_text("", encoding="utf-8")
         self.patcher = patch("app.settings_store.ENV_PATH", self.env_path)
         self.patcher.start()
+        self.config_env_patcher = patch("app.config.ENV_PATH", self.env_path)
+        self.config_env_patcher.start()
 
     def tearDown(self):
+        self.config_env_patcher.stop()
         self.patcher.stop()
         self.temp_dir.cleanup()
         os.environ.clear()

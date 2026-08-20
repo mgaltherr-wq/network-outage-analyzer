@@ -1,0 +1,102 @@
+name: Build installers
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build executable
+        run: pyinstaller --distpath dist/windows packaging/windows.spec
+
+      - name: Selftest the frozen build
+        run: dist\windows\NetworkOutageAnalyzer.exe --selftest
+
+      - name: Build installer
+        run: iscc packaging\windows.iss
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: dist/NetworkOutageAnalyzer-Setup.exe
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build executable
+        run: pyinstaller --distpath dist/linux packaging/linux.spec
+
+      - name: Selftest the frozen build
+        run: ./dist/linux/NetworkOutageAnalyzer/NetworkOutageAnalyzer --selftest
+
+      - name: Assemble AppDir
+        run: |
+          mkdir -p packaging/AppDir/usr/bin
+          cp -r dist/linux/NetworkOutageAnalyzer packaging/AppDir/usr/bin/
+          cp packaging/linux/NetworkOutageAnalyzer.desktop packaging/AppDir/
+          cp packaging/icon.png packaging/AppDir/networkoutageanalyzer.png
+          cat > packaging/AppDir/AppRun << 'EOF'
+          #!/bin/sh
+          HERE="$(dirname "$(readlink -f "${0}")")"
+          exec "${HERE}/usr/bin/NetworkOutageAnalyzer/NetworkOutageAnalyzer" "$@"
+          EOF
+          chmod +x packaging/AppDir/AppRun
+          chmod +x packaging/AppDir/usr/bin/NetworkOutageAnalyzer/NetworkOutageAnalyzer
+
+      - name: Build AppImage
+        run: |
+          curl -sL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+          ARCH=x86_64 ./appimagetool packaging/AppDir dist/NetworkOutageAnalyzer-x86_64.AppImage
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-appimage
+          path: dist/NetworkOutageAnalyzer-x86_64.AppImage
+
+  release:
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-installer
+          path: artifacts
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-appimage
+          path: artifacts
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/NetworkOutageAnalyzer-Setup.exe
+            artifacts/NetworkOutageAnalyzer-x86_64.AppImage
