@@ -77,6 +77,21 @@ def list_devices():
     return {"devices": inventory_module.load_devices(get_inventory_path())}
 
 
+@app.get("/api/devices/status")
+def device_status():
+    devices = inventory_module.load_devices(get_inventory_path())
+    ip_addresses = [device["ip_address"] for device in devices]
+    reachable, _ = check_devices(ip_addresses)
+    reachable_set = set(reachable)
+
+    return {
+        "devices": [
+            {"ip_address": ip, "reachable": ip in reachable_set}
+            for ip in ip_addresses
+        ]
+    }
+
+
 @app.post("/api/devices/refresh-snmp")
 def refresh_device_locations_from_snmp():
     devices = inventory_module.load_devices(get_inventory_path())

@@ -40,6 +40,23 @@ class DashboardTests(unittest.TestCase):
             "devices": [{"ip_address": "10.0.0.1", "location": "HQ - Core", "location_source": "manual"}]
         })
 
+    @patch("app.dashboard.check_devices")
+    def test_device_status_reports_reachable_and_unreachable(self, check_devices):
+        self.path.write_text(json.dumps([
+            {"ip_address": "10.0.0.1", "location": "", "location_source": "manual"},
+            {"ip_address": "10.0.0.2", "location": "", "location_source": "manual"},
+        ]), encoding="utf-8")
+        check_devices.return_value = (["10.0.0.1"], ["10.0.0.2"])
+
+        response = self.client.get("/api/devices/status")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"devices": [
+            {"ip_address": "10.0.0.1", "reachable": True},
+            {"ip_address": "10.0.0.2", "reachable": False},
+        ]})
+        check_devices.assert_called_once_with(["10.0.0.1", "10.0.0.2"])
+
     def test_dashboard_page_includes_location_input(self):
         response = self.client.get("/")
 
