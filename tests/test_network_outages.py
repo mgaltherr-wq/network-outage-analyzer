@@ -5,7 +5,7 @@ from app.services.network_outages import check_network_outage
 
 
 class CheckNetworkOutageTests(unittest.TestCase):
-    @patch("app.services.network_outages.CLOUDFLARE_API_TOKEN", None)
+    @patch("app.services.network_outages.config.CLOUDFLARE_API_TOKEN", None)
     def test_returns_unconfigured_when_no_token(self):
         result = check_network_outage("US")
 
@@ -15,7 +15,7 @@ class CheckNetworkOutageTests(unittest.TestCase):
             "detail": "Cloudflare Radar not configured",
         })
 
-    @patch("app.services.network_outages.CLOUDFLARE_API_TOKEN", "test-token")
+    @patch("app.services.network_outages.config.CLOUDFLARE_API_TOKEN", "test-token")
     @patch("app.services.network_outages.requests.get")
     def test_detects_outage_from_annotations(self, get):
         get.return_value.json.return_value = {
@@ -39,7 +39,7 @@ class CheckNetworkOutageTests(unittest.TestCase):
         self.assertIn("dateEnd", call.kwargs["params"])
         self.assertLess(call.kwargs["params"]["dateStart"], call.kwargs["params"]["dateEnd"])
 
-    @patch("app.services.network_outages.CLOUDFLARE_API_TOKEN", "test-token")
+    @patch("app.services.network_outages.config.CLOUDFLARE_API_TOKEN", "test-token")
     @patch("app.services.network_outages.requests.get")
     def test_no_outage_when_annotations_empty(self, get):
         get.return_value.json.return_value = {"result": {"annotations": []}}
@@ -52,7 +52,7 @@ class CheckNetworkOutageTests(unittest.TestCase):
             "detail": "No verified outages reported",
         })
 
-    @patch("app.services.network_outages.CLOUDFLARE_API_TOKEN", "test-token")
+    @patch("app.services.network_outages.config.CLOUDFLARE_API_TOKEN", "test-token")
     @patch("app.services.network_outages.requests.get")
     def test_no_outage_when_annotations_dont_match_country(self, get):
         get.return_value.json.return_value = {

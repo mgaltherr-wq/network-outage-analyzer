@@ -1,13 +1,6 @@
 import requests
 
-from app.config import (
-    SERVICENOW_INCIDENT_NUMBER,
-    SERVICENOW_INCIDENT_SYS_ID,
-    SERVICENOW_INSTANCE_URL,
-    SERVICENOW_NOTE_FIELD,
-    SERVICENOW_PASSWORD,
-    SERVICENOW_USERNAME,
-)
+from app import config
 
 
 class ServiceNowConfigError(ValueError):
@@ -15,16 +8,16 @@ class ServiceNowConfigError(ValueError):
 
 
 def _base_url():
-    return SERVICENOW_INSTANCE_URL.rstrip("/")
+    return config.SERVICENOW_INSTANCE_URL.rstrip("/")
 
 
 def _auth():
-    if not SERVICENOW_USERNAME or not SERVICENOW_PASSWORD:
+    if not config.SERVICENOW_USERNAME or not config.SERVICENOW_PASSWORD:
         raise ServiceNowConfigError(
             "Set SERVICENOW_USERNAME and SERVICENOW_PASSWORD in .env."
         )
 
-    return (SERVICENOW_USERNAME, SERVICENOW_PASSWORD)
+    return (config.SERVICENOW_USERNAME, config.SERVICENOW_PASSWORD)
 
 
 def _headers():
@@ -58,11 +51,11 @@ def find_incident_sys_id(incident_number):
 
 
 def configured_incident_sys_id():
-    if SERVICENOW_INCIDENT_SYS_ID:
-        return SERVICENOW_INCIDENT_SYS_ID
+    if config.SERVICENOW_INCIDENT_SYS_ID:
+        return config.SERVICENOW_INCIDENT_SYS_ID
 
-    if SERVICENOW_INCIDENT_NUMBER:
-        return find_incident_sys_id(SERVICENOW_INCIDENT_NUMBER)
+    if config.SERVICENOW_INCIDENT_NUMBER:
+        return find_incident_sys_id(config.SERVICENOW_INCIDENT_NUMBER)
 
     raise ServiceNowConfigError(
         "Set SERVICENOW_INCIDENT_SYS_ID or SERVICENOW_INCIDENT_NUMBER in .env."
@@ -89,7 +82,7 @@ def update_incident_with_weather(weather, analysis, percent_down):
         f"{_base_url()}/api/now/table/incident/{incident_sys_id}",
         auth=_auth(),
         headers=_headers(),
-        json={SERVICENOW_NOTE_FIELD: note},
+        json={config.SERVICENOW_NOTE_FIELD: note},
         timeout=15,
     )
     response.raise_for_status()

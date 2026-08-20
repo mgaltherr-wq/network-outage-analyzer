@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SignalWatch | Settings</title>
+  <style>
+    :root { --ink:#10233f; --muted:#718096; --line:#e7edf4; --blue:#1769e0; --blue-dark:#104fae; --panel:#fff; --bg:#f4f7fb; --green:#23b47e; --red:#df4054; }
+    * { box-sizing:border-box; } body { margin:0; font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--ink); background:var(--bg); }
+    button,input { font:inherit; }
+    .topbar { height:72px; padding:0 42px; display:flex; align-items:center; justify-content:space-between; background:#fff; border-bottom:1px solid var(--line); }
+    .brand { display:flex; align-items:center; gap:11px; font-size:19px; font-weight:750; letter-spacing:-.5px; }
+    .mark { width:31px;height:31px;border-radius:9px;background:linear-gradient(135deg,#2178ed,#1154c4);display:grid;place-items:center;color:white;font-size:18px; box-shadow:0 5px 12px #1769e044; }
+    .back-link { color:#60718a; text-decoration:none; font-size:14px; font-weight:650; display:flex; align-items:center; gap:6px; }
+    .back-link:hover { color:var(--ink); }
+    main { max-width:840px;margin:auto;padding:36px 42px 64px; }
+    .eyebrow{color:#657895;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:7px}
+    h1{font-size:30px;letter-spacing:-1px;margin:0 0 7px}
+    main > p.lead{margin:0 0 27px;color:var(--muted)}
+    .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 2px 4px #243b5605;margin-bottom:20px}
+    .card-header{padding:19px 22px 15px;border-bottom:1px solid var(--line)}
+    .card-header h2{font-size:16px;margin:0;letter-spacing:-.3px}
+    .field-list{padding:6px 22px 18px}
+    .field{padding:13px 0;border-bottom:1px solid var(--line)}
+    .field:last-child{border-bottom:0}
+    .field label{display:block;font-size:13px;font-weight:650;margin-bottom:7px}
+    .field-input-row{display:flex;gap:10px;align-items:center}
+    .field input[type=text],.field input[type=password]{flex:1;min-width:0;border:1px solid #d7e1ee;border-radius:9px;padding:10px 12px;outline:none;color:var(--ink)}
+    .field input:focus{border-color:#4b91ed;box-shadow:0 0 0 3px #2779df18}
+    .field input:disabled{background:#f4f7fb;color:#a7b3c4}
+    .hint{font-size:12px;color:#8493a7;margin-top:6px}
+    .clear-toggle{font-size:12px;color:#8493a7;white-space:nowrap;display:flex;align-items:center;gap:5px;cursor:pointer}
+    .status-set{color:var(--green);font-weight:700}
+    .status-unset{color:#8493a7}
+    .actions{position:sticky;bottom:0;background:linear-gradient(180deg,transparent,var(--bg) 30%);padding:20px 0 6px;display:flex;align-items:center;gap:14px}
+    .btn{border:0;border-radius:9px;padding:11px 18px;font-weight:700;cursor:pointer}
+    .btn-save{background:var(--blue);color:#fff}
+    .btn-save:hover{background:var(--blue-dark)}
+    .btn-save:disabled{background:#9fb9dd;cursor:default}
+    .banner{font-size:13px;font-weight:600;display:none}
+    .banner.show{display:block}
+    .banner.success{color:var(--green)}
+    .banner.error{color:var(--red)}
+    .loading{padding:40px;text-align:center;color:#8493a7}
+    @media(max-width:640px){.topbar{padding:0 20px}main{padding:28px 20px 64px}.field-input-row{flex-direction:column;align-items:stretch}.clear-toggle{align-self:flex-start}}
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="mark">⌁</span> SignalWatch</div>
+    <a class="back-link" href="/">&larr; Back to dashboard</a>
+  </header>
+  <main>
+    <div class="eyebrow">Configuration</div>
+    <h1>Settings</h1>
+    <p class="lead">Manage API keys and SNMP credentials used by the analyzer. Secret values are masked; leave a field blank to keep it unchanged.</p>
+    <div id="groups"><div class="loading">Loading settings&hellip;</div></div>
+    <div class="actions">
+      <button class="btn btn-save" id="saveButton" type="button" disabled>Save changes</button>
+      <span class="banner" id="banner"></span>
+    </div>
+  </main>
+  <script>
+    const groupsEl = document.getElementById('groups');
+    const saveButton = document.getElementById('saveButton');
+    const banner = document.getElementById('banner');
+    const escapeHtml = value => String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]));
+
+    function showBanner(message, kind) {
+      banner.textContent = message;
+      banner.className = `banner show ${kind}`;
+    }
+
+    function fieldRow(setting) {
+      const statusText = setting.is_set
+        ? `<span class="status-set">Set</span>${setting.secret ? ` (${escapeHtml(setting.value)})` : ''}`
+        : '<span class="status-unset">Not set</span>';
+
+      if (setting.secret) {
+        return `
+          <div class="field" data-key="${escapeHtml(setting.key)}" data-secret="true">
+            <label for="input-${escapeHtml(setting.key)}">${escapeHtml(setting.label)}</label>
+            <div class="field-input-row">
+              <input type="password" id="input-${escapeHtml(setting.key)}" placeholder="${setting.is_set ? 'Enter a new value to replace it' : 'Not set'}" autocomplete="off">
+              <label class="clear-toggle"><input type="checkbox" class="clear-checkbox"> Clear</label>
+            </div>
+            <div class="hint">${statusText}</div>
+          </div>`;
+      }
+
+      return `
+        <div class="field" data-key="${escapeHtml(setting.key)}">
+          <label for="input-${escapeHtml(setting.key)}">${escapeHtml(setting.label)}</label>
+          <div class="field-input-row">
+            <input type="text" id="input-${escapeHtml(setting.key)}" value="${escapeHtml(setting.value)}" autocomplete="off">
+          </div>
+        </div>`;
+    }
+
+    function render(settings) {
+      const groups = [];
+      const byGroup = new Map();
+      settings.forEach(setting => {
+        if (!byGroup.has(setting.group)) {
+          byGroup.set(setting.group, []);
+          groups.push(setting.group);
+        }
+        byGroup.get(setting.group).push(setting);
+      });
+
+      groupsEl.innerHTML = groups.map(group => `
+        <section class="card">
+          <div class="card-header"><h2>${escapeHtml(group)}</h2></div>
+          <div class="field-list">${byGroup.get(group).map(fieldRow).join('')}</div>
+        </section>`).join('');
+
+      groupsEl.querySelectorAll('.clear-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', () => {
+          const input = checkbox.closest('.field').querySelector('input[type=password]');
+          input.disabled = checkbox.checked;
+          if (checkbox.checked) input.value = '';
+        });
+      });
+
+      saveButton.disabled = false;
+    }
+
+    async function load() {
+      try {
+        const response = await fetch('/api/settings');
+        if (!response.ok) throw new Error('Failed to load settings');
+        const data = await response.json();
+        render(data.settings);
+      } catch {
+        groupsEl.innerHTML = '<div class="loading">Unable to load settings. Please refresh the page.</div>';
+      }
+    }
+
+    saveButton.addEventListener('click', async () => {
+      const values = {};
+      groupsEl.querySelectorAll('.field').forEach(field => {
+        const key = field.dataset.key;
+        const input = field.querySelector('input[type=text], input[type=password]');
+        if (field.dataset.secret) {
+          const clearBox = field.querySelector('.clear-checkbox');
+          if (clearBox.checked) {
+            values[key] = '';
+          } else if (input.value.trim()) {
+            values[key] = input.value.trim();
+          }
+        } else {
+          values[key] = input.value.trim();
+        }
+      });
+
+      saveButton.disabled = true;
+      banner.className = 'banner';
+      try {
+        const response = await fetch('/api/settings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ values }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || 'Could not save settings.');
+        render(data.settings);
+        showBanner('Settings saved.', 'success');
+      } catch (err) {
+        showBanner(err.message || 'Could not save settings.', 'error');
+        saveButton.disabled = false;
+      }
+    });
+
+    load();
+  </script>
+</body>
+</html>

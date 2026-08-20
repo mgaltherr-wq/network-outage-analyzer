@@ -25,9 +25,9 @@ class SnmpSyncTests(unittest.TestCase):
             self.assertEqual(stored["location_source"], "snmp")
             lookup.assert_called_once_with(
                 "10.0.0.1",
-                community=dashboard.SNMP_COMMUNITY,
-                timeout=dashboard.SNMP_TIMEOUT_SECONDS,
-                version=dashboard.SNMP_VERSION,
+                community=dashboard.config.SNMP_COMMUNITY,
+                timeout=dashboard.config.SNMP_TIMEOUT_SECONDS,
+                version=dashboard.config.SNMP_VERSION,
             )
 
 

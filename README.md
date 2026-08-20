@@ -78,6 +78,26 @@ The dashboard shows the same persisted device list used by the analyzer,
 lets you add or remove IP addresses, and includes a U.S.-focused weather
 map with an optional weather overlay.
 
+## Settings
+
+API keys, ServiceNow credentials, and SNMP settings can be changed without
+editing `.env` by hand:
+
+* **Dashboard** — click the gear icon in the top bar (or open
+  `http://127.0.0.1:8000/settings`) to view and update every setting. Secret
+  values (API keys, passwords, the SNMP community string) are always masked
+  on screen; type a new value to replace one, or check "Clear" to remove it.
+* **CLI** — choose "5. Settings" from the startup menu, pick a field by
+  number, and enter the new value (secret fields prompt without echoing
+  input). Leave the prompt blank to cancel, or enter `-` to clear a field.
+
+Both paths write to the same `.env` file and apply immediately to the
+running process — no restart required.
+
+> Note: the dashboard has no authentication, so anyone who can reach the
+> port can view masked settings and change them. Keep it on a trusted
+> network, and don't expose port 8000 to the public internet.
+
 
 # Network Outage Analyzer
 

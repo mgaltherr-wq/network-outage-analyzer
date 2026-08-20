@@ -5,7 +5,7 @@ from app.services.weather import geocode_location
 
 
 class GeocodeLocationTests(unittest.TestCase):
-    @patch("app.services.weather.WEATHER_API_KEY", "test-key")
+    @patch("app.services.weather.config.WEATHER_API_KEY", "test-key")
     @patch("app.services.weather.requests.get")
     def test_geocode_location_returns_first_match(self, get):
         get.return_value.json.return_value = [{

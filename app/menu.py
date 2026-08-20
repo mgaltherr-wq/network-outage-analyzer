@@ -1,9 +1,12 @@
+from getpass import getpass
+
 from app.ip_inventory import (
     add_ip_address,
     load_ip_addresses,
     remove_ip_address,
     save_ip_addresses,
 )
+from app.settings_store import FIELDS_BY_KEY, SECRET, get_settings, update_settings
 
 
 CONTINUE = "continue"
@@ -19,7 +22,8 @@ def show_startup_menu():
         print("2. Add IP address")
         print("3. Remove IP address")
         print("4. Continue to outage analysis")
-        print("5. Quit")
+        print("5. Settings")
+        print("6. Quit")
 
         choice = input("Select an option: ").strip()
 
@@ -32,9 +36,11 @@ def show_startup_menu():
         elif choice == "4":
             return CONTINUE
         elif choice == "5":
+            _show_settings_menu()
+        elif choice == "6":
             return QUIT
         else:
-            print("Invalid option. Choose 1-5.")
+            print("Invalid option. Choose 1-6.")
 
 
 def _print_ip_addresses(ip_addresses):
@@ -79,3 +85,45 @@ def _remove_ip_address_prompt(ip_addresses):
 
     print(f"{value} is not in the list.")
     return ip_addresses
+
+
+def _show_settings_menu():
+    while True:
+        settings = get_settings()
+
+        print("\n=== Settings ===")
+        index_to_key = {}
+        current_group = None
+        for index, setting in enumerate(settings, start=1):
+            if setting["group"] != current_group:
+                current_group = setting["group"]
+                print(f"-- {current_group} --")
+            status = setting["value"] if setting["is_set"] else "not set"
+            print(f"{index}. {setting['label']} ({status})")
+            index_to_key[str(index)] = setting["key"]
+        print("0. Back")
+
+        choice = input("Select a setting to change: ").strip()
+        if choice == "0":
+            return
+
+        key = index_to_key.get(choice)
+        if not key:
+            print("Invalid option.")
+            continue
+
+        _update_setting_prompt(key)
+
+
+def _update_setting_prompt(key):
+    field = FIELDS_BY_KEY[key]
+    prompt = f"New value for {field.label} (blank to cancel, '-' to clear): "
+    value = getpass(prompt) if field.kind == SECRET else input(prompt)
+    value = value.strip()
+
+    if not value:
+        print("No change made.")
+        return
+
+    update_settings({key: "" if value == "-" else value})
+    print(f"Updated {field.label}.")

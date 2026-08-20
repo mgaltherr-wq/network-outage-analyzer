@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 import requests
 
-from app.config import CLOUDFLARE_API_TOKEN
+from app import config
 
 
 def check_network_outage(country_code, days=12):
@@ -11,7 +11,7 @@ def check_network_outage(country_code, days=12):
     Returns a status dict rather than raising, so a missing token or a flaky
     upstream never breaks the caller.
     """
-    if not CLOUDFLARE_API_TOKEN or not country_code:
+    if not config.CLOUDFLARE_API_TOKEN or not country_code:
         return {
             "checked": False,
             "detected": False,
@@ -23,7 +23,7 @@ def check_network_outage(country_code, days=12):
 
     response = requests.get(
         "https://api.cloudflare.com/client/v4/radar/annotations/outages",
-        headers={"Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}"},
+        headers={"Authorization": f"Bearer {config.CLOUDFLARE_API_TOKEN}"},
         params={
             "dateStart": date_start.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "dateEnd": date_end.strftime("%Y-%m-%dT%H:%M:%SZ"),

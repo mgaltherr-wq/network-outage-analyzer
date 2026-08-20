@@ -8,8 +8,8 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 import app.ip_inventory as inventory_module
+from app import config, settings_store
 from app.analysis import correlator
-from app.config import SNMP_COMMUNITY, SNMP_TIMEOUT_SECONDS, SNMP_VERSION
 from app.services.network_outages import check_network_outage
 from app.services.power_outages import check_power_outage
 from app.services.reachability import check_devices
@@ -25,6 +25,7 @@ save_devices = inventory_module.save_devices
 
 app = FastAPI(title="SignalWatch Dashboard", docs_url=None, redoc_url=None)
 _DASHBOARD_FILE = Path(__file__).with_name("dashboard.html")
+_SETTINGS_FILE = Path(__file__).with_name("settings.html")
 _INVENTORY_PATH = None
 
 
@@ -37,6 +38,10 @@ class DeviceRequest(BaseModel):
     location: str | None = None
 
 
+class SettingsUpdateRequest(BaseModel):
+    values: dict[str, str]
+
+
 @lru_cache(maxsize=256)
 def _cached_geocode(location: str):
     return geocode_location(location)
@@ -45,6 +50,26 @@ def _cached_geocode(location: str):
 @app.get("/", response_class=HTMLResponse)
 def dashboard():
     return _DASHBOARD_FILE.read_text(encoding="utf-8")
+
+
+@app.get("/settings", response_class=HTMLResponse)
+def settings_page():
+    return _SETTINGS_FILE.read_text(encoding="utf-8")
+
+
+@app.get("/api/settings")
+def get_settings():
+    return {"settings": settings_store.get_settings()}
+
+
+@app.put("/api/settings")
+def update_settings(payload: SettingsUpdateRequest):
+    try:
+        updated = settings_store.update_settings(payload.values)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    return {"settings": updated}
 
 
 @app.get("/api/devices")
@@ -59,9 +84,9 @@ def refresh_device_locations_from_snmp():
     for device in devices:
         location = lookup_location_snmp(
             device["ip_address"],
-            community=SNMP_COMMUNITY,
-            timeout=SNMP_TIMEOUT_SECONDS,
-            version=SNMP_VERSION,
+            community=config.SNMP_COMMUNITY,
+            timeout=config.SNMP_TIMEOUT_SECONDS,
+            version=config.SNMP_VERSION,
         )
         if not location:
             continue

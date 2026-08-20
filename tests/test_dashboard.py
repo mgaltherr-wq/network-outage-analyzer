@@ -1,4 +1,6 @@
+import importlib
 import json
+import os
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -8,6 +10,7 @@ import app.ip_inventory as inventory_module
 
 from fastapi.testclient import TestClient
 
+from app import config as config_module
 from app import dashboard as dashboard_module
 
 
@@ -105,6 +108,55 @@ class DashboardTests(unittest.TestCase):
             "location": "Branch Office",
             "location_source": "manual",
         }])
+
+
+class SettingsApiTests(unittest.TestCase):
+    def setUp(self):
+        self.env_backup = dict(os.environ)
+        self.temp_dir = TemporaryDirectory()
+        self.env_path = Path(self.temp_dir.name) / ".env"
+        self.env_path.write_text("", encoding="utf-8")
+        self.patcher = patch("app.settings_store.ENV_PATH", self.env_path)
+        self.patcher.start()
+        self.client = TestClient(dashboard_module.app)
+
+    def tearDown(self):
+        self.patcher.stop()
+        self.temp_dir.cleanup()
+        os.environ.clear()
+        os.environ.update(self.env_backup)
+        importlib.reload(config_module)
+
+    def test_settings_page_is_served(self):
+        response = self.client.get("/settings")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Settings", response.text)
+
+    def test_get_settings_lists_masked_fields(self):
+        response = self.client.get("/api/settings")
+
+        self.assertEqual(response.status_code, 200)
+        keys = [setting["key"] for setting in response.json()["settings"]]
+        self.assertIn("WEATHER_API_KEY", keys)
+        self.assertIn("SNMP_COMMUNITY", keys)
+
+    def test_put_settings_updates_value_and_applies_live(self):
+        response = self.client.put(
+            "/api/settings", json={"values": {"WEATHER_API_KEY": "updated-key"}}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        updated = {s["key"]: s for s in response.json()["settings"]}
+        self.assertTrue(updated["WEATHER_API_KEY"]["is_set"])
+        self.assertEqual(config_module.WEATHER_API_KEY, "updated-key")
+
+    def test_put_settings_rejects_unknown_key(self):
+        response = self.client.put(
+            "/api/settings", json={"values": {"NOT_A_SETTING": "x"}}
+        )
+
+        self.assertEqual(response.status_code, 422)
 
 
 if __name__ == "__main__":
