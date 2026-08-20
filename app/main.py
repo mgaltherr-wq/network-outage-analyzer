@@ -1,8 +1,4 @@
 from app.services.weather import get_weather
-from app.services.servicenow import (
-    ServiceNowConfigError,
-    update_incident_with_weather,
-)
 from app.analysis.correlator import analyze_outage
 from app.analysis.correlator import CAUSE_KEY
 from app.analysis.correlator import NOTIFY_KEY
@@ -44,13 +40,10 @@ def run_analysis():
         print(f"Potential Cause: {result[CAUSE_KEY]}")
         print(f"Confidence: {result['confidence']}")
 
-        # Temporarily disabled: ServiceNow incident updates
-        # try:
-        #     incident = update_incident_with_weather(weather, result, percent_down)
-        #     print(
-        #         f"Updated ServiceNow incident: {incident.get('number', 'unknown')}"
-        #     )
-        # except ServiceNowConfigError as exc:
-        #     print(f"ServiceNow update skipped: {exc}")
+        # ServiceNow ticketing runs per-location from the dashboard
+        # (app/dashboard.py's list_device_locations), where devices are
+        # grouped by location — this CLI flow only has a single aggregate
+        # percent_down across all configured IPs, with no location grouping
+        # to search/create a ticket against.
     else:
         print("No actionable outage detected.")

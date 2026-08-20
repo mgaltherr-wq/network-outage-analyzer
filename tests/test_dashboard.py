@@ -24,6 +24,7 @@ class DashboardTests(unittest.TestCase):
         self.client = TestClient(dashboard_module.app)
         inventory_module.load_devices.cache_clear() if hasattr(inventory_module.load_devices, "cache_clear") else None
         dashboard_module._cached_geocode.cache_clear()
+        dashboard_module._active_outage_tickets.clear()
 
     def tearDown(self):
         self.temp_dir.cleanup()
@@ -64,13 +65,14 @@ class DashboardTests(unittest.TestCase):
         self.assertIn('id="locationInput"', response.text)
         self.assertIn('Optional location', response.text)
 
+    @patch("app.dashboard.servicenow.search_or_create_outage_incident")
     @patch("app.dashboard.check_power_outage")
     @patch("app.dashboard.check_network_outage")
     @patch("app.dashboard.get_weather")
     @patch("app.dashboard.check_devices")
     @patch("app.dashboard.geocode_location")
     def test_device_locations_includes_confidence_when_fully_down(
-        self, geocode_location, check_devices, get_weather, check_network_outage, check_power_outage
+        self, geocode_location, check_devices, get_weather, check_network_outage, check_power_outage, search_or_create_ticket
     ):
         self.path.write_text(json.dumps([
             {"ip_address": "10.0.0.1", "location": "HQ - Core", "location_source": "manual"}
@@ -82,6 +84,7 @@ class DashboardTests(unittest.TestCase):
         get_weather.return_value = {"condition": "thunderstorm", "wind_mph": 20, "temp_f": 75}
         check_network_outage.return_value = {"checked": True, "detected": True, "detail": "Regional ISP outage"}
         check_power_outage.return_value = {"checked": True, "detected": False, "detail": "No significant power outages reported in Harris County"}
+        search_or_create_ticket.return_value = {"sys_id": "abc123", "number": "INC0001", "action": "created"}
 
         response = self.client.get("/api/device-locations")
 
@@ -90,6 +93,42 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(location["confidence"]["weather"]["confidence"], "High")
         self.assertEqual(location["confidence"]["network"], {"confidence": "High", "detail": "Regional ISP outage"})
         self.assertEqual(location["confidence"]["power"]["confidence"], "Low")
+        self.assertEqual(location["ticket"], {"sys_id": "abc123", "number": "INC0001", "action": "created"})
+
+    @patch("app.dashboard.servicenow.search_or_create_outage_incident")
+    @patch("app.dashboard.check_power_outage")
+    @patch("app.dashboard.check_network_outage")
+    @patch("app.dashboard.get_weather")
+    @patch("app.dashboard.check_devices")
+    @patch("app.dashboard.geocode_location")
+    def test_device_locations_only_tickets_once_per_outage_episode(
+        self, geocode_location, check_devices, get_weather, check_network_outage, check_power_outage, search_or_create_ticket
+    ):
+        self.path.write_text(json.dumps([
+            {"ip_address": "10.0.0.1", "location": "HQ - Core", "location_source": "manual"}
+        ]), encoding="utf-8")
+        geocode_location.return_value = {
+            "latitude": 29.7604, "longitude": -95.3698, "name": "Houston", "state": "Texas", "country": "US",
+        }
+        get_weather.return_value = {"condition": "thunderstorm", "wind_mph": 20, "temp_f": 75}
+        check_network_outage.return_value = {"checked": True, "detected": True, "detail": "Regional ISP outage"}
+        check_power_outage.return_value = {"checked": True, "detected": False, "detail": "No significant power outages reported in Harris County"}
+        search_or_create_ticket.return_value = {"sys_id": "abc123", "number": "INC0001", "action": "created"}
+
+        # Still down: polling again during the same episode must not re-ticket.
+        check_devices.return_value = ([], ["10.0.0.1"])
+        self.client.get("/api/device-locations")
+        self.client.get("/api/device-locations")
+        search_or_create_ticket.assert_called_once()
+
+        # Recovers: episode state clears.
+        check_devices.return_value = (["10.0.0.1"], [])
+        self.client.get("/api/device-locations")
+
+        # Drops again: a new episode tickets again.
+        check_devices.return_value = ([], ["10.0.0.1"])
+        self.client.get("/api/device-locations")
+        self.assertEqual(search_or_create_ticket.call_count, 2)
 
     @patch("app.dashboard.get_weather")
     @patch("app.dashboard.check_devices")

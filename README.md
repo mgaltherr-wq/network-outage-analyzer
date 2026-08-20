@@ -2,8 +2,10 @@
 # Network Outage Analyzer
 
 Checks weather conditions when a remote location has enough devices down to
-suggest a site-impacting outage. When the analysis is actionable, the app can
-append the weather assessment to a ServiceNow incident.
+suggest a site-impacting outage. When a location crosses that threshold, the
+dashboard searches ServiceNow for a recent incident already covering the
+affected IPs and comments on it, or opens a new high-priority incident if
+none exists.
 
 ## Download
 
@@ -47,11 +49,8 @@ SERVICENOW_INSTANCE_URL=https://dev374413.service-now.com
 SERVICENOW_USERNAME=your_servicenow_username
 SERVICENOW_PASSWORD=your_servicenow_password
 
-# Use either the sys_id directly, or an incident number to look up the sys_id.
-SERVICENOW_INCIDENT_SYS_ID=
-SERVICENOW_INCIDENT_NUMBER=INC0010001
-
-# Optional. Use comments if you want a customer-visible comment.
+# Optional. Use comments if you want a customer-visible comment; defaults to
+# the internal work_notes field.
 SERVICENOW_NOTE_FIELD=work_notes
 
 # Optional. Enables the Cloudflare Radar network-outage check on the dashboard.
@@ -78,6 +77,30 @@ for each as a possible cause:
 Each source reports "High" (detected), "Low" (checked, nothing detected), or
 "Unknown" (source unavailable/unconfigured) independently — they aren't
 blended into a single score.
+
+## ServiceNow ticketing
+
+When a location crosses the same 90% threshold, the dashboard also opens (or
+updates) a ServiceNow incident, requires `SERVICENOW_USERNAME`/
+`SERVICENOW_PASSWORD` to be configured:
+
+1. Searches incidents created in the last 4 hours for the affected IP
+   addresses appearing in their short description or description.
+2. If a match is found, adds the outage analysis (location, affected IPs,
+   percent down, and the weather/network/power confidence breakdown above)
+   as a comment on that incident.
+3. If no match is found, creates a new **High** priority incident with the
+   same analysis.
+
+To avoid commenting every 30 seconds while an outage is ongoing, each
+location is only ticketed once per "episode" — once its devices recover
+below 90% down, the next time it crosses the threshold is treated as a new
+episode and tickets again. This state resets when the dashboard restarts.
+
+This runs from the dashboard only (`app/dashboard.py`), since it needs the
+per-location device grouping the CLI's single aggregate analysis doesn't
+have. A failure here (bad credentials, ServiceNow unreachable) never breaks
+the dashboard — the location still renders, just without a `ticket` entry.
 
 ## Run (from source)
 

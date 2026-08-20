@@ -10,6 +10,7 @@ from pydantic import BaseModel
 import app.ip_inventory as inventory_module
 from app import config, settings_store
 from app.analysis import correlator
+from app.services import servicenow
 from app.services.network_outages import check_network_outage
 from app.services.power_outages import check_power_outage
 from app.services.reachability import check_devices
@@ -45,6 +46,29 @@ class SettingsUpdateRequest(BaseModel):
 @lru_cache(maxsize=256)
 def _cached_geocode(location: str):
     return geocode_location(location)
+
+
+# Tracks which locations already have an open ServiceNow ticket for the
+# outage currently in progress, so a location crossing OUTAGE_THRESHOLD only
+# triggers one search-or-create + comment per episode, not one every poll.
+# Cleared when a location's percent_down drops back below the threshold.
+_active_outage_tickets = {}
+
+
+def _ensure_outage_ticket(location, ip_addresses, percent_down, confidence):
+    key = location.casefold()
+    if key in _active_outage_tickets:
+        return _active_outage_tickets[key]
+
+    try:
+        ticket = servicenow.search_or_create_outage_incident(
+            location, ip_addresses, percent_down, confidence
+        )
+    except Exception:
+        return None
+
+    _active_outage_tickets[key] = ticket
+    return ticket
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -183,6 +207,14 @@ def list_device_locations():
                 confidence = _assess_location_confidence(coordinates)
                 if confidence:
                     marker["confidence"] = confidence
+
+                ticket = _ensure_outage_ticket(
+                    group["location"], group["devices"], percent_down, confidence
+                )
+                if ticket:
+                    marker["ticket"] = ticket
+            else:
+                _active_outage_tickets.pop(group["location"].casefold(), None)
 
             markers.append(marker)
 
