@@ -65,6 +65,13 @@ class DashboardTests(unittest.TestCase):
         self.assertIn('id="locationInput"', response.text)
         self.assertIn('Optional location', response.text)
 
+    def test_dashboard_page_includes_outage_analysis_section(self):
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('id="outageList"', response.text)
+        self.assertIn('Outage analysis', response.text)
+
     @patch("app.dashboard.servicenow.search_or_create_outage_incident")
     @patch("app.dashboard.check_power_outage")
     @patch("app.dashboard.check_network_outage")

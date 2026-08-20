@@ -17,6 +17,8 @@
     .add-form{display:flex;gap:8px;padding:0 22px 18px}.add-form input{min-width:0;flex:1;border:1px solid #d7e1ee;border-radius:9px;padding:11px 12px;outline:none;color:var(--ink)}.add-form input:focus{border-color:#4b91ed;box-shadow:0 0 0 3px #2779df18}.btn{border:0;border-radius:9px;padding:10px 13px;font-weight:700;cursor:pointer}.btn-add{background:var(--blue);color:#fff}.btn-add:hover{background:var(--blue-dark)}.device-list{border-top:1px solid var(--line);min-height:272px}.device{display:flex;align-items:center;gap:12px;padding:15px 22px;border-bottom:1px solid var(--line)}.device:last-child{border-bottom:0}.device-icon{width:32px;height:32px;border-radius:9px;background:#e9f2ff;color:#1769e0;display:grid;place-items:center;font-size:15px}.device.is-down .device-icon{background:#fdeaec;color:#cf4d5f}.device-info{flex:1;min-width:0}.device-name{font-weight:680;font-size:14px;display:flex;align-items:center;gap:7px}.device-ip{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:#73849c;margin-top:2px}.device-status{width:9px;height:9px;border-radius:50%;flex-shrink:0;background:#c3cedd}.device-status.up{background:var(--green);box-shadow:0 0 0 3px #23b47e22}.device-status.down{background:#df4054;box-shadow:0 0 0 3px #df405422}.remove{color:#cf4d5f;background:#fff;border:1px solid #f0d9dd;border-radius:7px;padding:6px 9px;cursor:pointer;font-size:12px;font-weight:700}.remove:hover{background:#fff4f5}.empty{padding:54px 22px;text-align:center;color:#8493a7;font-size:14px}.error{padding:0 22px 15px;color:#c44253;font-size:13px;display:none}
     .map-card{overflow:hidden}.map-head{padding-bottom:12px}.map-actions{display:flex;gap:9px;align-items:center}.toggle{display:flex;align-items:center;gap:8px;color:#58708c;font-size:13px;font-weight:650;white-space:nowrap}.switch{width:37px;height:21px;border-radius:999px;background:#cbd6e4;position:relative;cursor:pointer;border:0}.switch:after{content:"";position:absolute;width:15px;height:15px;border-radius:50%;background:white;top:3px;left:3px;box-shadow:0 1px 3px #243b5655;transition:.18s}.switch.on{background:#1769e0}.switch.on:after{left:19px}.focus-btn{background:#eef5ff;color:#1769d5;font-size:12px}
     .map-wrap{position:relative;height:408px;border-top:1px solid var(--line);background:#d8edf8}.world-map{width:100%;height:100%;z-index:1}.map-legend{position:absolute;z-index:500;right:18px;bottom:28px;background:#fffffff0;border:1px solid #dae5ef;border-radius:8px;padding:10px 12px;font-size:11px;color:#64778e;box-shadow:0 2px 9px #243b5620;display:none}.weather-on .map-legend{display:block}.legend-line{height:6px;width:106px;border-radius:9px;background:linear-gradient(90deg,#44c6ed,#6a8cf0,#d65dc6,#f1593c);margin:7px 0 4px}.leaflet-control-attribution{font-size:10px!important}.leaflet-popup-content{font:13px Inter,ui-sans-serif,system-ui,sans-serif;color:#233852}.weather-marker{border:3px solid #fff;border-radius:50%;box-shadow:0 1px 5px #1f487a88;width:14px;height:14px}.weather-marker.up{background:#23b47e}.weather-marker.partial{background:#f2a44a}.weather-marker.down{background:#df4054}
+    .outage-card{margin-top:24px}.outage-list{border-top:1px solid var(--line)}.outage-item{padding:18px 22px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:minmax(180px,.9fr) 1fr;gap:22px}.outage-item:last-child{border-bottom:0}.outage-item-header{display:flex;align-items:center;gap:9px;margin-bottom:5px}.outage-item-header strong{font-size:14px}.outage-badge{font-size:11px;font-weight:700;border-radius:20px;padding:3px 9px}.outage-badge.down{color:#c02f3f;background:#fdeaec}.outage-badge.partial{color:#a06315;background:#fdf1e2}.outage-meta{font-size:12px;color:var(--muted)}.outage-detail{display:grid;gap:5px;font-size:12.5px;color:#4a5d76}.outage-detail .conf-label{display:inline-block;min-width:96px;margin-right:8px;font-weight:650;color:#324861}.outage-ticket{margin-top:6px;font-size:12.5px;color:#1769d5;font-weight:650}
+    @media(max-width:720px){.outage-item{grid-template-columns:1fr}}
     @media(max-width:920px){.layout{grid-template-columns:1fr}.stats{grid-template-columns:1fr}.topbar{padding:0 20px}main{padding:28px 20px}.updated{display:none}.map-wrap{height:350px}}@media(max-width:520px){.top-right .live{display:none}.title-row{align-items:start}.add-form{flex-direction:column}.btn-add{width:100%}.map-actions .focus-btn{display:none}}
   </style>
 </head>
@@ -31,6 +33,7 @@
         <div class="map-wrap"><div id="worldMap" class="world-map" aria-label="Interactive world map"></div><div class="map-legend">Precipitation intensity<div class="legend-line"></div><span>Light</span><span style="float:right">Heavy</span></div></div>
       </article>
     </section>
+    <section class="card outage-card"><div class="card-header"><div><h2>Outage analysis</h2><p>Locations currently at or above 90% of devices down.</p></div><span class="device-count" id="outageCount">0 active</span></div><div class="outage-list" id="outageList"><div class="empty">No active outages detected.</div></div></section>
   </main>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script>
@@ -45,6 +48,35 @@
     async function load() { try { const r=await fetch('/api/devices'); const data=await r.json(); render(data.devices); refreshSnmp(); pollDeviceStatus(); } catch { showError('Unable to load devices. Please refresh the page.'); } }
     document.getElementById('addForm').addEventListener('submit', async event => { event.preventDefault(); const input=document.getElementById('ipInput'); const locationInput=document.getElementById('locationInput'); showError(); const payload = { ip_address: input.value, location: locationInput.value.trim() }; const r=await fetch('/api/devices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const data=await r.json(); if(!r.ok){showError(data.detail || 'Could not add device.');return;} input.value=''; locationInput.value=''; render(data.devices); document.getElementById('lastUpdated').textContent='just now'; });
     list.addEventListener('click', async event => { const button=event.target.closest('.remove'); if(!button)return; const r=await fetch(`/api/devices/${encodeURIComponent(button.dataset.ip)}`,{method:'DELETE'}); const data=await r.json(); if(!r.ok){showError(data.detail || 'Could not remove device.');return;} showError(); render(data.devices); document.getElementById('lastUpdated').textContent='just now'; });
+    const OUTAGE_THRESHOLD = 0.9;
+    const outageList = document.getElementById('outageList'), outageCount = document.getElementById('outageCount');
+    function renderOutages(locations) {
+      const outages = locations.filter(site => site.devices.length && (site.unreachable / site.devices.length) >= OUTAGE_THRESHOLD);
+      outageCount.textContent = `${outages.length} active`;
+      outageList.innerHTML = outages.length ? outages.map(site => {
+        const percentDown = site.unreachable / site.devices.length;
+        const badgeClass = site.status === 'down' ? 'down' : 'partial';
+        const badgeText = site.status === 'down' ? 'Site unreachable' : 'Partial outage';
+        const region = [site.state, site.country].filter(Boolean).join(', ');
+        const confidence = site.confidence ? `
+          <div><span class="conf-label">Weather</span>${escapeHtml(site.confidence.weather.confidence)} — ${escapeHtml(site.confidence.weather.detail)}</div>
+          <div><span class="conf-label">Network outage</span>${escapeHtml(site.confidence.network.confidence)} — ${escapeHtml(site.confidence.network.detail)}</div>
+          <div><span class="conf-label">Power outage</span>${escapeHtml(site.confidence.power.confidence)} — ${escapeHtml(site.confidence.power.detail)}</div>
+        ` : '<div>Cause assessment unavailable.</div>';
+        const ticket = site.ticket ? `<div class="outage-ticket">ServiceNow: ${site.ticket.action === 'created' ? 'created' : 'updated'} ${escapeHtml(site.ticket.number)}</div>` : '';
+        return `
+          <div class="outage-item">
+            <div>
+              <div class="outage-item-header"><strong>${escapeHtml(site.location)}</strong><span class="outage-badge ${badgeClass}">${badgeText}</span></div>
+              <div class="outage-meta">${region ? escapeHtml(region) + ' · ' : ''}${percentDown.toLocaleString(undefined,{style:'percent'})} down · ${site.reachable}/${site.devices.length} reachable</div>
+            </div>
+            <div>
+              <div class="outage-detail">${confidence}</div>
+              ${ticket}
+            </div>
+          </div>`;
+      }).join('') : '<div class="empty">No active outages detected.</div>';
+    }
     const worldMap = L.map('worldMap', { worldCopyJump:true, minZoom:2, maxZoom:18 }).setView([20, 0], 2);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' }).addTo(worldMap);
     const deviceMarkerLayer = L.layerGroup().addTo(worldMap);
@@ -53,6 +85,7 @@
         const response = await fetch('/api/device-locations');
         if (!response.ok) return;
         const data = await response.json();
+        renderOutages(data.locations);
         deviceMarkerLayer.clearLayers();
         data.locations.forEach(site => {
           const region = [site.state, site.country].filter(Boolean).join(', ');
