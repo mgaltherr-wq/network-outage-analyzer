@@ -121,3 +121,10 @@ transient device loss.
 source venv/bin/activate
 python -m unittest discover -s tests
 ```
+
+## 10. Manual / Integration Testing
+
+Live, end-to-end tests against real hosts (e.g. a GNS3 topology) are tracked
+separately in [`manual-test-log.md`](manual-test-log.md), since they exercise
+real reachability and browser-side live updates rather than the mocked
+boundaries this plan covers.
