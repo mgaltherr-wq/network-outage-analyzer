@@ -6,6 +6,9 @@ from app import config
 
 OUTAGE_SEARCH_WINDOW_HOURS = 4
 HIGH_PRIORITY = "2"
+# The customer-visible "Additional comments" journal field (vs. the internal
+# work_notes).
+NOTE_FIELD = "comments"
 
 # Refresh the OAuth token this many seconds before ServiceNow says it expires,
 # so a request never goes out with a token that lapses in flight.
@@ -35,47 +38,29 @@ class _BearerAuth(requests.auth.AuthBase):
 _token_cache = None
 
 
-def _oauth_enabled():
-    return bool(config.SERVICENOW_CLIENT_ID and config.SERVICENOW_CLIENT_SECRET)
-
-
 def _fetch_oauth_token():
     """Request an access token from the instance's OAuth endpoint.
 
-    Uses the password grant when a username/password is configured (the
-    standard setup for a ServiceNow "OAuth API endpoint for external
-    clients"), otherwise the client_credentials grant, which needs an OAuth
-    Application User set on the instance's application registry entry.
+    Uses the client_credentials grant, which needs the grant enabled on the
+    instance and an OAuth Application User set on the application registry
+    entry (incidents are created as that user).
     """
-    data = {
-        "client_id": config.SERVICENOW_CLIENT_ID,
-        "client_secret": config.SERVICENOW_CLIENT_SECRET,
-    }
-    if config.SERVICENOW_USERNAME and config.SERVICENOW_PASSWORD:
-        data.update(
-            grant_type="password",
-            username=config.SERVICENOW_USERNAME,
-            password=config.SERVICENOW_PASSWORD,
-        )
-    else:
-        data["grant_type"] = "client_credentials"
-
     response = requests.post(
         f"{_base_url()}/oauth_token.do",
-        data=data,
+        data={
+            "grant_type": "client_credentials",
+            "client_id": config.SERVICENOW_CLIENT_ID,
+            "client_secret": config.SERVICENOW_CLIENT_SECRET,
+        },
         headers={"Accept": "application/json"},
         timeout=15,
     )
     if response.status_code in (400, 401):
         raise ServiceNowConfigError(
-            f"ServiceNow rejected the OAuth {data['grant_type']} request "
+            "ServiceNow rejected the OAuth client_credentials request "
             f"(HTTP {response.status_code}). Check SERVICENOW_CLIENT_ID/"
-            "SERVICENOW_CLIENT_SECRET"
-            + (
-                " and SERVICENOW_USERNAME/SERVICENOW_PASSWORD."
-                if data["grant_type"] == "password"
-                else ", and that the client_credentials grant is enabled on the instance."
-            )
+            "SERVICENOW_CLIENT_SECRET, and that the client_credentials grant "
+            "is enabled on the instance."
         )
     response.raise_for_status()
 
@@ -90,8 +75,6 @@ def _oauth_token():
         _base_url(),
         config.SERVICENOW_CLIENT_ID,
         config.SERVICENOW_CLIENT_SECRET,
-        config.SERVICENOW_USERNAME,
-        config.SERVICENOW_PASSWORD,
     )
     now = time.monotonic()
     if _token_cache and _token_cache[0] == key and now < _token_cache[2]:
@@ -103,16 +86,13 @@ def _oauth_token():
 
 
 def _auth():
-    if _oauth_enabled():
-        return _BearerAuth(_oauth_token())
-
-    if not config.SERVICENOW_USERNAME or not config.SERVICENOW_PASSWORD:
+    if not config.SERVICENOW_CLIENT_ID or not config.SERVICENOW_CLIENT_SECRET:
         raise ServiceNowConfigError(
-            "Set SERVICENOW_CLIENT_ID and SERVICENOW_CLIENT_SECRET (OAuth), or "
-            "SERVICENOW_USERNAME and SERVICENOW_PASSWORD (basic auth), in .env."
+            "Set SERVICENOW_CLIENT_ID and SERVICENOW_CLIENT_SECRET in .env "
+            "(or on the Settings page)."
         )
 
-    return (config.SERVICENOW_USERNAME, config.SERVICENOW_PASSWORD)
+    return _BearerAuth(_oauth_token())
 
 
 def _headers():
@@ -192,7 +172,7 @@ def add_comment(incident_sys_id, note):
         f"{_base_url()}/api/now/table/incident/{incident_sys_id}",
         auth=_auth(),
         headers=_headers(),
-        json={config.SERVICENOW_NOTE_FIELD: note},
+        json={NOTE_FIELD: note},
         timeout=15,
     )
     response.raise_for_status()

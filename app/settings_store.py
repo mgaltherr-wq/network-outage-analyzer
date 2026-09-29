@@ -36,11 +36,8 @@ SETTINGS_FIELDS = [
     SettingField("SNMP_VERSION", "SNMP version", TEXT, "SNMP"),
     SettingField("SNMP_TIMEOUT_SECONDS", "SNMP timeout (seconds)", TEXT, "SNMP"),
     SettingField("SERVICENOW_INSTANCE_URL", "ServiceNow instance URL", TEXT, "ServiceNow"),
-    SettingField("SERVICENOW_USERNAME", "ServiceNow username", TEXT, "ServiceNow"),
-    SettingField("SERVICENOW_PASSWORD", "ServiceNow password", SECRET, "ServiceNow"),
     SettingField("SERVICENOW_CLIENT_ID", "ServiceNow OAuth client ID", TEXT, "ServiceNow"),
     SettingField("SERVICENOW_CLIENT_SECRET", "ServiceNow OAuth client secret", SECRET, "ServiceNow"),
-    SettingField("SERVICENOW_NOTE_FIELD", "ServiceNow note field", TEXT, "ServiceNow"),
 ]
 
 FIELDS_BY_KEY = {field.key: field for field in SETTINGS_FIELDS}

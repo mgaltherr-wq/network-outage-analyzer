@@ -126,6 +126,17 @@ class CreateIncidentTests(unittest.TestCase):
         self.assertEqual(post.call_args.kwargs["json"]["priority"], "2")
 
 
+class AddCommentTests(unittest.TestCase):
+    @patch("app.services.servicenow._auth", return_value=None)
+    @patch("app.services.servicenow.requests.patch")
+    def test_posts_note_as_additional_comment(self, patch_request, _auth):
+        patch_request.return_value.json.return_value = {"result": {"sys_id": "abc123"}}
+
+        servicenow.add_comment("abc123", "outage details")
+
+        self.assertEqual(patch_request.call_args.kwargs["json"], {"comments": "outage details"})
+
+
 class AuthTests(unittest.TestCase):
     def setUp(self):
         servicenow._token_cache = None
@@ -133,8 +144,6 @@ class AuthTests(unittest.TestCase):
         self.config = patch.multiple(
             "app.services.servicenow.config",
             SERVICENOW_INSTANCE_URL="https://example.service-now.com/",
-            SERVICENOW_USERNAME=None,
-            SERVICENOW_PASSWORD=None,
             SERVICENOW_CLIENT_ID=None,
             SERVICENOW_CLIENT_SECRET=None,
         )
@@ -145,44 +154,23 @@ class AuthTests(unittest.TestCase):
         post.return_value.status_code = 200
         post.return_value.json.return_value = {"access_token": token, "expires_in": expires_in}
 
-    def test_uses_basic_auth_without_client_credentials(self):
-        servicenow.config.SERVICENOW_USERNAME = "user"
-        servicenow.config.SERVICENOW_PASSWORD = "pass"
-
-        self.assertEqual(servicenow._auth(), ("user", "pass"))
-
     def test_raises_when_nothing_configured(self):
         with self.assertRaises(ServiceNowConfigError):
             servicenow._auth()
 
     @patch("app.services.servicenow.requests.post")
-    def test_oauth_password_grant_when_username_set(self, post):
+    def test_requests_token_with_client_credentials_grant(self, post):
         self._token_response(post)
         servicenow.config.SERVICENOW_CLIENT_ID = "cid"
         servicenow.config.SERVICENOW_CLIENT_SECRET = "csecret"
-        servicenow.config.SERVICENOW_USERNAME = "user"
-        servicenow.config.SERVICENOW_PASSWORD = "pass"
 
         auth = servicenow._auth()
 
         self.assertEqual(post.call_args.args[0], "https://example.service-now.com/oauth_token.do")
         data = post.call_args.kwargs["data"]
-        self.assertEqual(data["grant_type"], "password")
-        self.assertEqual(data["username"], "user")
+        self.assertEqual(data["grant_type"], "client_credentials")
         self.assertEqual(data["client_id"], "cid")
         self.assertEqual(auth.token, "tok123")
-
-    @patch("app.services.servicenow.requests.post")
-    def test_oauth_client_credentials_grant_without_username(self, post):
-        self._token_response(post)
-        servicenow.config.SERVICENOW_CLIENT_ID = "cid"
-        servicenow.config.SERVICENOW_CLIENT_SECRET = "csecret"
-
-        servicenow._auth()
-
-        data = post.call_args.kwargs["data"]
-        self.assertEqual(data["grant_type"], "client_credentials")
-        self.assertNotIn("username", data)
 
     @patch("app.services.servicenow.requests.post")
     def test_bearer_auth_sets_authorization_header(self, post):

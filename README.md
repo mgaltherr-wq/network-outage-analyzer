@@ -45,20 +45,10 @@ SNMP_COMMUNITY=your_read_only_community
 SNMP_VERSION=2c
 SNMP_TIMEOUT_SECONDS=2
 
+# ServiceNow ticketing authenticates with OAuth (client_credentials grant).
 SERVICENOW_INSTANCE_URL=https://dev374413.service-now.com
-SERVICENOW_USERNAME=your_servicenow_username
-SERVICENOW_PASSWORD=your_servicenow_password
-
-# Optional. Authenticate with OAuth instead of basic auth. When both are set,
-# the app requests a bearer token from <instance>/oauth_token.do — using the
-# password grant if SERVICENOW_USERNAME/PASSWORD are also set, otherwise the
-# client_credentials grant.
 SERVICENOW_CLIENT_ID=your_oauth_client_id
 SERVICENOW_CLIENT_SECRET=your_oauth_client_secret
-
-# Optional. Use comments if you want a customer-visible comment; defaults to
-# the internal work_notes field.
-SERVICENOW_NOTE_FIELD=work_notes
 
 # Optional. Enables the Cloudflare Radar network-outage check on the dashboard.
 # Without it, the network signal reports "Unknown" confidence instead of
@@ -88,14 +78,15 @@ blended into a single score.
 ## ServiceNow ticketing
 
 When a location crosses the same 90% threshold, the dashboard also opens (or
-updates) a ServiceNow incident, requires `SERVICENOW_USERNAME`/
-`SERVICENOW_PASSWORD` (and/or OAuth credentials — see below) to be configured:
+updates) a ServiceNow incident. This requires the OAuth client ID/secret to
+be configured (see below):
 
 1. Searches incidents created in the last 4 hours for the affected IP
    addresses appearing in their short description or description.
 2. If a match is found, adds the outage analysis (location, affected IPs,
    percent down, and the weather/network/power confidence breakdown above)
-   as a comment on that incident.
+   as an additional comment (the customer-visible `comments` field) on that
+   incident.
 3. If no match is found, creates a new **High** priority incident with the
    same analysis.
 
@@ -108,18 +99,13 @@ episode and tickets again. This state resets when the dashboard restarts.
 
 Set `SERVICENOW_CLIENT_ID` and `SERVICENOW_CLIENT_SECRET` (from an "OAuth API
 endpoint for external clients" entry in the instance's System OAuth >
-Application Registry) to use OAuth bearer tokens instead of sending the
-username/password on every request. The grant type is chosen automatically:
-
-* **Username/password also set** → `password` grant. Works on a Personal
-  Developer Instance with no further setup.
-* **Only client ID/secret set** → `client_credentials` grant. The instance
-  must have this grant enabled (`glide.oauth.inbound.client.credential.grant_type.enabled`
-  system property) and an OAuth Application User assigned on the registry
-  entry; incidents are created as that user.
-
-Tokens are cached and refreshed shortly before they expire. Leave the client
-ID/secret blank to keep using basic auth.
+Application Registry). The app requests a bearer token from
+`<instance>/oauth_token.do` using the `client_credentials` grant, so the
+instance must have that grant enabled
+(`glide.oauth.inbound.client.credential.grant_type.enabled` system property)
+and an OAuth Application User assigned on the registry entry; incidents are
+created as that user. Tokens are cached and refreshed shortly before they
+expire.
 
 This runs from the dashboard only (`app/dashboard.py`), since it needs the
 per-location device grouping the CLI's single aggregate analysis doesn't
