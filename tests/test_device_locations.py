@@ -25,12 +25,18 @@ class DeviceLocationTests(unittest.TestCase):
             }
             with patch("app.ip_inventory.DEFAULT_IP_LIST_PATH", path), patch(
                 "app.dashboard._cached_geocode", return_value=coordinates
-            ) as geocode:
+            ) as geocode, patch(
+                "app.dashboard.check_devices", return_value=(["10.0.0.1", "10.0.0.2"], [])
+            ) as check:
                 result = dashboard.list_device_locations()
 
             self.assertEqual(result, {"locations": [{
                 "location": "Los Angeles",
                 "devices": ["10.0.0.1", "10.0.0.2"],
                 **coordinates,
+                "status": "up",
+                "reachable": 2,
+                "unreachable": 0,
             }]})
             geocode.assert_called_once_with("Los Angeles")
+            check.assert_called_once_with(["10.0.0.1", "10.0.0.2"])
