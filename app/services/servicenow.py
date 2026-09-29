@@ -1,9 +1,15 @@
+import time
+
 import requests
 
 from app import config
 
 OUTAGE_SEARCH_WINDOW_HOURS = 4
 HIGH_PRIORITY = "2"
+
+# Refresh the OAuth token this many seconds before ServiceNow says it expires,
+# so a request never goes out with a token that lapses in flight.
+TOKEN_EXPIRY_MARGIN_SECONDS = 60
 
 
 class ServiceNowConfigError(ValueError):
@@ -14,10 +20,96 @@ def _base_url():
     return config.SERVICENOW_INSTANCE_URL.rstrip("/")
 
 
+class _BearerAuth(requests.auth.AuthBase):
+    def __init__(self, token):
+        self.token = token
+
+    def __call__(self, request):
+        request.headers["Authorization"] = f"Bearer {self.token}"
+        return request
+
+
+# (cache key, access token, expires-at monotonic time). The key captures the
+# settings the token was issued for, so changing them on the Settings page
+# fetches a fresh token instead of reusing one for the old credentials.
+_token_cache = None
+
+
+def _oauth_enabled():
+    return bool(config.SERVICENOW_CLIENT_ID and config.SERVICENOW_CLIENT_SECRET)
+
+
+def _fetch_oauth_token():
+    """Request an access token from the instance's OAuth endpoint.
+
+    Uses the password grant when a username/password is configured (the
+    standard setup for a ServiceNow "OAuth API endpoint for external
+    clients"), otherwise the client_credentials grant, which needs an OAuth
+    Application User set on the instance's application registry entry.
+    """
+    data = {
+        "client_id": config.SERVICENOW_CLIENT_ID,
+        "client_secret": config.SERVICENOW_CLIENT_SECRET,
+    }
+    if config.SERVICENOW_USERNAME and config.SERVICENOW_PASSWORD:
+        data.update(
+            grant_type="password",
+            username=config.SERVICENOW_USERNAME,
+            password=config.SERVICENOW_PASSWORD,
+        )
+    else:
+        data["grant_type"] = "client_credentials"
+
+    response = requests.post(
+        f"{_base_url()}/oauth_token.do",
+        data=data,
+        headers={"Accept": "application/json"},
+        timeout=15,
+    )
+    if response.status_code in (400, 401):
+        raise ServiceNowConfigError(
+            f"ServiceNow rejected the OAuth {data['grant_type']} request "
+            f"(HTTP {response.status_code}). Check SERVICENOW_CLIENT_ID/"
+            "SERVICENOW_CLIENT_SECRET"
+            + (
+                " and SERVICENOW_USERNAME/SERVICENOW_PASSWORD."
+                if data["grant_type"] == "password"
+                else ", and that the client_credentials grant is enabled on the instance."
+            )
+        )
+    response.raise_for_status()
+
+    payload = _parse_json(response)
+    return payload["access_token"], float(payload.get("expires_in", 1800))
+
+
+def _oauth_token():
+    global _token_cache
+
+    key = (
+        _base_url(),
+        config.SERVICENOW_CLIENT_ID,
+        config.SERVICENOW_CLIENT_SECRET,
+        config.SERVICENOW_USERNAME,
+        config.SERVICENOW_PASSWORD,
+    )
+    now = time.monotonic()
+    if _token_cache and _token_cache[0] == key and now < _token_cache[2]:
+        return _token_cache[1]
+
+    token, expires_in = _fetch_oauth_token()
+    _token_cache = (key, token, now + max(expires_in - TOKEN_EXPIRY_MARGIN_SECONDS, 0))
+    return token
+
+
 def _auth():
+    if _oauth_enabled():
+        return _BearerAuth(_oauth_token())
+
     if not config.SERVICENOW_USERNAME or not config.SERVICENOW_PASSWORD:
         raise ServiceNowConfigError(
-            "Set SERVICENOW_USERNAME and SERVICENOW_PASSWORD in .env."
+            "Set SERVICENOW_CLIENT_ID and SERVICENOW_CLIENT_SECRET (OAuth), or "
+            "SERVICENOW_USERNAME and SERVICENOW_PASSWORD (basic auth), in .env."
         )
 
     return (config.SERVICENOW_USERNAME, config.SERVICENOW_PASSWORD)

@@ -1,7 +1,9 @@
 import unittest
 from unittest.mock import patch
 
+from app.services import servicenow
 from app.services.servicenow import (
+    ServiceNowConfigError,
     build_outage_note,
     create_incident,
     find_recent_incident_for_ips,
@@ -122,6 +124,111 @@ class CreateIncidentTests(unittest.TestCase):
         create_incident("Possible outage", "details")
 
         self.assertEqual(post.call_args.kwargs["json"]["priority"], "2")
+
+
+class AuthTests(unittest.TestCase):
+    def setUp(self):
+        servicenow._token_cache = None
+        self.addCleanup(setattr, servicenow, "_token_cache", None)
+        self.config = patch.multiple(
+            "app.services.servicenow.config",
+            SERVICENOW_INSTANCE_URL="https://example.service-now.com/",
+            SERVICENOW_USERNAME=None,
+            SERVICENOW_PASSWORD=None,
+            SERVICENOW_CLIENT_ID=None,
+            SERVICENOW_CLIENT_SECRET=None,
+        )
+        self.config.start()
+        self.addCleanup(self.config.stop)
+
+    def _token_response(self, post, token="tok123", expires_in=1800):
+        post.return_value.status_code = 200
+        post.return_value.json.return_value = {"access_token": token, "expires_in": expires_in}
+
+    def test_uses_basic_auth_without_client_credentials(self):
+        servicenow.config.SERVICENOW_USERNAME = "user"
+        servicenow.config.SERVICENOW_PASSWORD = "pass"
+
+        self.assertEqual(servicenow._auth(), ("user", "pass"))
+
+    def test_raises_when_nothing_configured(self):
+        with self.assertRaises(ServiceNowConfigError):
+            servicenow._auth()
+
+    @patch("app.services.servicenow.requests.post")
+    def test_oauth_password_grant_when_username_set(self, post):
+        self._token_response(post)
+        servicenow.config.SERVICENOW_CLIENT_ID = "cid"
+        servicenow.config.SERVICENOW_CLIENT_SECRET = "csecret"
+        servicenow.config.SERVICENOW_USERNAME = "user"
+        servicenow.config.SERVICENOW_PASSWORD = "pass"
+
+        auth = servicenow._auth()
+
+        self.assertEqual(post.call_args.args[0], "https://example.service-now.com/oauth_token.do")
+        data = post.call_args.kwargs["data"]
+        self.assertEqual(data["grant_type"], "password")
+        self.assertEqual(data["username"], "user")
+        self.assertEqual(data["client_id"], "cid")
+        self.assertEqual(auth.token, "tok123")
+
+    @patch("app.services.servicenow.requests.post")
+    def test_oauth_client_credentials_grant_without_username(self, post):
+        self._token_response(post)
+        servicenow.config.SERVICENOW_CLIENT_ID = "cid"
+        servicenow.config.SERVICENOW_CLIENT_SECRET = "csecret"
+
+        servicenow._auth()
+
+        data = post.call_args.kwargs["data"]
+        self.assertEqual(data["grant_type"], "client_credentials")
+        self.assertNotIn("username", data)
+
+    @patch("app.services.servicenow.requests.post")
+    def test_bearer_auth_sets_authorization_header(self, post):
+        self._token_response(post)
+        servicenow.config.SERVICENOW_CLIENT_ID = "cid"
+        servicenow.config.SERVICENOW_CLIENT_SECRET = "csecret"
+
+        request = servicenow._auth()(type("Req", (), {"headers": {}})())
+
+        self.assertEqual(request.headers["Authorization"], "Bearer tok123")
+
+    @patch("app.services.servicenow.requests.post")
+    def test_reuses_cached_token_until_expiry(self, post):
+        self._token_response(post)
+        servicenow.config.SERVICENOW_CLIENT_ID = "cid"
+        servicenow.config.SERVICENOW_CLIENT_SECRET = "csecret"
+
+        with patch("app.services.servicenow.time.monotonic", return_value=1000):
+            servicenow._auth()
+            servicenow._auth()
+        self.assertEqual(post.call_count, 1)
+
+        with patch("app.services.servicenow.time.monotonic", return_value=1000 + 1800):
+            servicenow._auth()
+        self.assertEqual(post.call_count, 2)
+
+    @patch("app.services.servicenow.requests.post")
+    def test_fetches_new_token_when_credentials_change(self, post):
+        self._token_response(post)
+        servicenow.config.SERVICENOW_CLIENT_ID = "cid"
+        servicenow.config.SERVICENOW_CLIENT_SECRET = "csecret"
+
+        servicenow._auth()
+        servicenow.config.SERVICENOW_CLIENT_SECRET = "rotated"
+        servicenow._auth()
+
+        self.assertEqual(post.call_count, 2)
+
+    @patch("app.services.servicenow.requests.post")
+    def test_rejected_token_request_raises_config_error(self, post):
+        post.return_value.status_code = 401
+        servicenow.config.SERVICENOW_CLIENT_ID = "cid"
+        servicenow.config.SERVICENOW_CLIENT_SECRET = "wrong"
+
+        with self.assertRaises(ServiceNowConfigError):
+            servicenow._auth()
 
 
 if __name__ == "__main__":

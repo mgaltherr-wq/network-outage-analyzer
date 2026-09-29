@@ -38,6 +38,8 @@ SETTINGS_FIELDS = [
     SettingField("SERVICENOW_INSTANCE_URL", "ServiceNow instance URL", TEXT, "ServiceNow"),
     SettingField("SERVICENOW_USERNAME", "ServiceNow username", TEXT, "ServiceNow"),
     SettingField("SERVICENOW_PASSWORD", "ServiceNow password", SECRET, "ServiceNow"),
+    SettingField("SERVICENOW_CLIENT_ID", "ServiceNow OAuth client ID", TEXT, "ServiceNow"),
+    SettingField("SERVICENOW_CLIENT_SECRET", "ServiceNow OAuth client secret", SECRET, "ServiceNow"),
     SettingField("SERVICENOW_NOTE_FIELD", "ServiceNow note field", TEXT, "ServiceNow"),
 ]
 
