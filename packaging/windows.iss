@@ -7,10 +7,14 @@
 #define MyAppName "Network Outage Analyzer"
 #define MyAppExeName "NetworkOutageAnalyzer.exe"
 #define MyAppPublisher "Mitchell G. Altherr"
+; CI passes /DMyAppVersion=<tag without the "v">; this is the local fallback.
+#ifndef MyAppVersion
+  #define MyAppVersion "1.1.0"
+#endif
 
 [Setup]
 AppName={#MyAppName}
-AppVersion=1.0
+AppVersion={#MyAppVersion}
 DefaultDirName={localappdata}\NetworkOutageAnalyzer
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
