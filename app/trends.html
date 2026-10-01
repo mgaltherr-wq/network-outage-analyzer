@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SignalWatch | Trends</title>
+  <style>
+    :root { --ink:#10233f; --muted:#718096; --line:#e7edf4; --grid:#eef2f7; --blue:#1769e0; --panel:#fff; --bg:#f4f7fb; --green:#23b47e; --orange:#f2a44a; --red:#df4054; }
+    * { box-sizing:border-box; } body { margin:0; font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--ink); background:var(--bg); }
+    button { font:inherit; }
+    .topbar { height:72px; padding:0 42px; display:flex; align-items:center; justify-content:space-between; background:#fff; border-bottom:1px solid var(--line); }
+    .brand { display:flex; align-items:center; gap:11px; font-size:19px; font-weight:750; letter-spacing:-.5px; }
+    .mark { width:31px;height:31px;border-radius:9px;background:linear-gradient(135deg,#2178ed,#1154c4);display:grid;place-items:center;color:white;font-size:18px; box-shadow:0 5px 12px #1769e044; }
+    .top-links { display:flex; align-items:center; gap:18px; }
+    .back-link { color:#60718a; text-decoration:none; font-size:14px; font-weight:650; }
+    .back-link:hover { color:var(--ink); }
+    .signout { background:#fff; border:1px solid var(--line); border-radius:8px; padding:6px 11px; color:#60718a; font-size:13px; font-weight:650; cursor:pointer; }
+    .signout:hover { background:#f0f4fa; color:var(--ink); }
+    main { max-width:1240px; margin:auto; padding:36px 42px 56px; }
+    .eyebrow { color:#657895; font-size:13px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; margin-bottom:7px; }
+    .title-row { display:flex; justify-content:space-between; align-items:end; gap:16px; flex-wrap:wrap; margin-bottom:24px; }
+    .title-row h1 { font-size:30px; letter-spacing:-1px; margin:0; } .title-row p { margin:7px 0 0; color:var(--muted); }
+    .ranges { display:inline-flex; background:#fff; border:1px solid var(--line); border-radius:10px; padding:3px; }
+    .ranges button { border:0; background:none; border-radius:7px; padding:7px 13px; font-size:13px; font-weight:700; color:#60718a; cursor:pointer; }
+    .ranges button[aria-pressed=true] { background:var(--blue); color:#fff; }
+    .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:18px; margin-bottom:24px; }
+    .stat { background:#fff; border:1px solid var(--line); border-radius:15px; padding:19px 21px; }
+    .stat-label { color:var(--muted); font-size:13px; font-weight:600; }
+    .stat-number { font-size:29px; letter-spacing:-1.2px; font-weight:750; margin-top:8px; }
+    .stat-sub { font-size:12px; color:#7890a8; margin-top:4px; }
+    .card { background:var(--panel); border:1px solid var(--line); border-radius:16px; box-shadow:0 2px 4px #243b5605; margin-bottom:24px; }
+    .card-header { padding:21px 22px 15px; display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+    .card-header h2 { font-size:17px; margin:0; letter-spacing:-.3px; } .card-header p { font-size:13px; color:var(--muted); margin:5px 0 0; }
+    .count { background:#f0f4fa; color:#61738d; font-size:12px; font-weight:700; border-radius:99px; padding:4px 8px; white-space:nowrap; }
+    .chart-wrap { position:relative; padding:0 22px 14px; }
+    .chart { display:block; width:100%; height:260px; touch-action:none; }
+    .chart text { font-size:11px; fill:#8493a7; font-variant-numeric:tabular-nums; }
+    .tooltip { position:absolute; pointer-events:none; background:#fff; border:1px solid #dae5ef; border-radius:8px; padding:8px 10px; font-size:12px; color:#4a5d76; box-shadow:0 4px 14px #243b5622; white-space:nowrap; display:none; }
+    .tooltip strong { display:block; font-size:15px; color:var(--ink); }
+    details.table-view { padding:0 22px 16px; font-size:13px; } details.table-view summary { cursor:pointer; color:var(--blue); font-weight:650; }
+    .table-scroll { overflow-x:auto; }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    th { text-align:left; font-size:12px; font-weight:650; color:var(--muted); padding:10px 22px; border-top:1px solid var(--line); border-bottom:1px solid var(--line); white-space:nowrap; }
+    td { padding:12px 22px; border-bottom:1px solid var(--line); vertical-align:middle; }
+    tr:last-child td { border-bottom:0; }
+    td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    details.table-view table th, details.table-view table td { padding:7px 10px; }
+    .mono { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; }
+    .sub { color:var(--muted); font-size:12px; margin-top:2px; }
+    .spark { display:block; width:140px; height:28px; }
+    .pill { display:inline-flex; align-items:center; gap:6px; font-weight:650; }
+    .pill i { width:8px; height:8px; border-radius:50%; display:inline-block; }
+    .good i { background:var(--green); } .warn i { background:var(--orange); } .bad i { background:var(--red); }
+    .ongoing { font-size:11px; font-weight:700; color:#c02f3f; background:#fdeaec; border-radius:20px; padding:2px 8px; margin-left:6px; }
+    .ticket { color:var(--blue); font-weight:650; }
+    .empty { padding:44px 22px; text-align:center; color:#8493a7; font-size:14px; border-top:1px solid var(--line); }
+    .error { color:#c44253; font-size:13px; margin:-10px 0 20px; display:none; }
+    @media(max-width:920px){ .stats{grid-template-columns:repeat(2,1fr)} .topbar{padding:0 20px} main{padding:28px 16px} th,td{padding:10px 14px} }
+    @media(max-width:520px){ .stats{grid-template-columns:1fr} .spark{width:90px} .topbar{padding:0 16px} .brand{font-size:17px} .top-links{gap:10px} .back-link{white-space:nowrap} }
+  </style>
+</head>
+<body>
+  <header class="topbar"><div class="brand"><span class="mark">⌁</span> SignalWatch</div><div class="top-links"><a class="back-link" href="/">← Dashboard</a><button type="button" class="signout" id="signOutButton">Sign out</button></div></header>
+  <main>
+    <div class="title-row">
+      <div><div class="eyebrow">History</div><h1>Trends</h1><p>Device availability and outage history over time.</p></div>
+      <div class="ranges" role="group" aria-label="Time range">
+        <button type="button" data-range="24h" aria-pressed="true">24 hours</button><button type="button" data-range="7d" aria-pressed="false">7 days</button><button type="button" data-range="30d" aria-pressed="false">30 days</button><button type="button" data-range="90d" aria-pressed="false">90 days</button>
+      </div>
+    </div>
+    <div class="error" id="error"></div>
+    <section class="stats">
+      <div class="stat"><div class="stat-label">Fleet availability</div><div class="stat-number" id="statAvailability">—</div><div class="stat-sub">share of successful checks</div></div>
+      <div class="stat"><div class="stat-label">Outages</div><div class="stat-number" id="statOutages">—</div><div class="stat-sub" id="statOngoing">locations ≥ 90% down</div></div>
+      <div class="stat"><div class="stat-label">Total outage time</div><div class="stat-number" id="statOutageTime">—</div><div class="stat-sub">summed across locations</div></div>
+      <div class="stat"><div class="stat-label">Longest outage</div><div class="stat-number" id="statLongest">—</div><div class="stat-sub" id="statLongestWhere">&nbsp;</div></div>
+    </section>
+
+    <section class="card">
+      <div class="card-header"><div><h2>Fleet availability</h2><p id="fleetSubtitle">Share of device checks that succeeded, per hour.</p></div></div>
+      <div class="chart-wrap" id="fleetWrap"><svg class="chart" id="fleetChart" role="img" aria-label="Fleet availability over time"></svg><div class="tooltip" id="tooltip"></div></div>
+      <details class="table-view"><summary>Show as table</summary><div class="table-scroll"><table><thead><tr><th>Time</th><th class="num">Availability</th></tr></thead><tbody id="fleetTable"></tbody></table></div></details>
+    </section>
+
+    <section class="card">
+      <div class="card-header"><div><h2>Locations</h2><p>Least available first.</p></div><span class="count" id="locationCount">0</span></div>
+      <div class="table-scroll" id="locations"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-header"><div><h2>Outage history</h2><p>Each time a location crossed 90% of its devices unreachable, until it recovered.</p></div><span class="count" id="outageCount">0</span></div>
+      <div class="table-scroll" id="outages"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-header"><div><h2>Least available devices</h2><p>Devices that missed at least one check in this range.</p></div></div>
+      <div class="table-scroll" id="devices"></div>
+    </section>
+  </main>
+  <script>
+    const nativeFetch = window.fetch.bind(window);
+    window.fetch = async (input, init) => { const r = await nativeFetch(input, init); if (r.status === 401 && String(input).startsWith('/api/')) location.href = '/login'; return r; };
+    document.getElementById('signOutButton').addEventListener('click', async () => { try { await nativeFetch('/api/auth/logout', { method: 'POST' }); } finally { location.href = '/login'; } });
+
+    const escapeHtml = value => String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]));
+    const $ = id => document.getElementById(id);
+    const SVG = 'http://www.w3.org/2000/svg';
+    const HOUR = 3600;
+
+    function pct(value, digits) {
+      if (value == null) return '—';
+      if (digits == null) digits = value >= 0.999 && value < 1 ? 2 : 1;
+      return (value * 100).toFixed(value === 1 ? 0 : digits) + '%';
+    }
+    function duration(seconds) {
+      seconds = Math.max(0, Math.round(seconds));
+      if (seconds < 60) return `${seconds}s`;
+      const m = Math.floor(seconds / 60), h = Math.floor(m / 60), d = Math.floor(h / 24);
+      if (h < 1) return `${m}m`;
+      if (d < 1) return m % 60 ? `${h}h ${m % 60}m` : `${h}h`;
+      return h % 24 ? `${d}d ${h % 24}h` : `${d}d`;
+    }
+    function formatTime(t, bucket) {
+      const date = new Date(t * 1000);
+      return bucket >= 86400
+        ? date.toLocaleDateString(undefined, { month:'short', day:'numeric' })
+        : date.toLocaleString(undefined, { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+    }
+    function health(value) { return value == null ? '' : value >= 0.99 ? 'good' : value >= 0.95 ? 'warn' : 'bad'; }
+    function healthPill(value) { return `<span class="pill ${health(value)}"><i></i>${pct(value)}</span>`; }
+
+    // Lowest y-axis floor that still shows the data: availability usually sits
+    // near 100%, where a 0-100% axis would flatten every dip into the top edge.
+    const Y_SCALES = [[0.99, 0.0025], [0.95, 0.01], [0.9, 0.025], [0.75, 0.05], [0.5, 0.1], [0, 0.25]];  // [floor, tick step]
+    function yScale(values) {
+      const min = Math.min(...values);
+      return Y_SCALES.find(([floor]) => min >= floor + (1 - floor) * 0.1) || Y_SCALES[Y_SCALES.length - 1];
+    }
+    const yFloor = values => yScale(values)[0];
+
+    // Ticks on round local times (midnights, or every N hours), thinned to fit.
+    function timeTicks(x0, x1, plotWidth) {
+      const maxTicks = Math.max(2, Math.floor(plotWidth / 90));
+      const hourSteps = [1, 2, 3, 6, 12], daySteps = [1, 2, 5, 7, 14, 30];
+      const spanHours = (x1 - x0) / 3600;
+      const daily = spanHours / 12 > maxTicks;
+      const steps = daily ? daySteps : hourSteps;
+      const step = steps.find(n => (daily ? spanHours / 24 : spanHours) / n <= maxTicks) || steps[steps.length - 1];
+      const d = new Date(x0 * 1000);
+      d.setMinutes(0, 0, 0);
+      if (daily) d.setHours(0);
+      const ticks = [];
+      for (; d.getTime() / 1000 <= x1; daily ? d.setDate(d.getDate() + 1) : d.setHours(d.getHours() + 1)) {
+        const t = d.getTime() / 1000;
+        if (t < x0) continue;
+        const index = daily ? Math.round(t / 86400) : d.getHours();
+        if (index % step) continue;
+        ticks.push({ t, label: daily || d.getHours() === 0
+          ? d.toLocaleDateString(undefined, { month:'short', day:'numeric' })
+          : d.toLocaleTimeString(undefined, { hour:'numeric' }) });
+      }
+      return ticks;
+    }
+
+    // Split a series wherever a bucket is missing (the app wasn't running), so
+    // the line breaks rather than drawing a slope across time with no data.
+    function segments(series, bucket) {
+      const result = [];
+      series.forEach((point, i) => {
+        if (i === 0 || point.t - series[i - 1].t > bucket * 1.5) result.push([]);
+        result[result.length - 1].push(point);
+      });
+      return result;
+    }
+
+    function el(name, attrs, parent) {
+      const node = document.createElementNS(SVG, name);
+      Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, v));
+      if (parent) parent.appendChild(node);
+      return node;
+    }
+
+    let lastData = null;
+
+    function drawFleet(data) {
+      const svg = $('fleetChart'), tooltip = $('tooltip');
+      svg.replaceChildren();
+      tooltip.style.display = 'none';
+      const series = data.fleet.filter(p => p.availability != null);
+      const width = svg.clientWidth, height = svg.clientHeight;
+      if (!series.length) {
+        el('text', { x: width / 2, y: height / 2, 'text-anchor': 'middle' }, svg).textContent = 'No history recorded in this range yet.';
+        return;
+      }
+      const pad = { top: 12, right: 12, bottom: 26, left: 50 };
+      const [floor, yStep] = yScale(series.map(p => p.availability));
+      const x0 = data.since, x1 = data.until;
+      const x = t => pad.left + (t - x0) / (x1 - x0) * (width - pad.left - pad.right);
+      const y = v => pad.top + (1 - (v - floor) / (1 - floor)) * (height - pad.top - pad.bottom);
+      // Bucket points sit at the bucket's middle.
+      const mid = p => p.t + data.bucket_seconds / 2;
+
+      const yTicks = Math.round((1 - floor) / yStep);
+      const yDigits = yStep < 0.01 ? 2 : yStep < 0.1 ? 1 : 0;
+      for (let i = 0; i <= yTicks; i++) {
+        const v = floor + yStep * i;
+        el('line', { x1: pad.left, x2: width - pad.right, y1: y(v), y2: y(v), stroke: 'var(--grid)', 'stroke-width': 1 }, svg);
+        el('text', { x: pad.left - 8, y: y(v) + 4, 'text-anchor': 'end' }, svg).textContent = parseFloat((v * 100).toFixed(yDigits)) + '%';
+      }
+      timeTicks(x0, x1, width - pad.left - pad.right).forEach(tick => {
+        const tx = x(tick.t);
+        if (tx < pad.left + 20 || tx > width - pad.right - 20) return;
+        el('line', { x1: tx, x2: tx, y1: height - pad.bottom, y2: height - pad.bottom + 4, stroke: '#c3cedd', 'stroke-width': 1 }, svg);
+        el('text', { x: tx, y: height - 6, 'text-anchor': 'middle' }, svg).textContent = tick.label;
+      });
+
+      segments(series, data.bucket_seconds).forEach(segment => {
+        const line = segment.map((p, i) => `${i ? 'L' : 'M'}${x(mid(p)).toFixed(1)},${y(p.availability).toFixed(1)}`).join('');
+        const base = y(floor);
+        if (segment.length > 1) {
+          el('path', { d: `${line}L${x(mid(segment[segment.length - 1])).toFixed(1)},${base}L${x(mid(segment[0])).toFixed(1)},${base}Z`, fill: 'var(--blue)', 'fill-opacity': 0.1 }, svg);
+          el('path', { d: line, fill: 'none', stroke: 'var(--blue)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, svg);
+        } else {
+          el('circle', { cx: x(mid(segment[0])), cy: y(segment[0].availability), r: 4, fill: 'var(--blue)', stroke: '#fff', 'stroke-width': 2 }, svg);
+        }
+      });
+
+      const crosshair = el('line', { y1: pad.top, y2: height - pad.bottom, stroke: '#c3cedd', 'stroke-width': 1, visibility: 'hidden' }, svg);
+      const dot = el('circle', { r: 5, fill: 'var(--blue)', stroke: '#fff', 'stroke-width': 2, visibility: 'hidden' }, svg);
+      svg.onpointermove = event => {
+        const box = svg.getBoundingClientRect();
+        const px = event.clientX - box.left;
+        let nearest = series[0];
+        series.forEach(p => { if (Math.abs(x(mid(p)) - px) < Math.abs(x(mid(nearest)) - px)) nearest = p; });
+        const cx = x(mid(nearest)), cy = y(nearest.availability);
+        crosshair.setAttribute('x1', cx); crosshair.setAttribute('x2', cx); crosshair.setAttribute('visibility', 'visible');
+        dot.setAttribute('cx', cx); dot.setAttribute('cy', cy); dot.setAttribute('visibility', 'visible');
+        const value = document.createElement('strong');
+        value.textContent = pct(nearest.availability);
+        tooltip.replaceChildren(value, document.createTextNode(formatTime(nearest.t, data.bucket_seconds)));
+        tooltip.style.display = 'block';
+        const left = cx + 22 + 12 + tooltip.offsetWidth > box.width ? cx + 22 - 12 - tooltip.offsetWidth : cx + 22 + 12;
+        tooltip.style.left = `${left}px`;
+        tooltip.style.top = `${Math.max(0, cy - tooltip.offsetHeight - 10)}px`;
+      };
+      svg.onpointerleave = () => { crosshair.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); tooltip.style.display = 'none'; };
+    }
+
+    // *floor* is shared by every row so equal dips look equal across locations.
+    function sparkline(series, data, floor) {
+      const points = series.filter(p => p.availability != null);
+      if (!points.length) return '';
+      const w = 140, h = 28;
+      const x = t => 2 + (t + data.bucket_seconds / 2 - data.since) / (data.until - data.since) * (w - 4);
+      const y = v => 3 + (1 - (v - floor) / (1 - floor)) * (h - 6);
+      const paths = segments(points, data.bucket_seconds).map(seg => seg.length > 1
+        ? `<path d="${seg.map((p, i) => `${i ? 'L' : 'M'}${x(p.t).toFixed(1)},${y(p.availability).toFixed(1)}`).join('')}" fill="none" stroke="var(--blue)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>`
+        : `<circle cx="${x(seg[0].t).toFixed(1)}" cy="${y(seg[0].availability).toFixed(1)}" r="2" fill="var(--blue)"/>`).join('');
+      return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">${paths}</svg>`;
+    }
+
+    function causeSummary(confidence) {
+      if (!confidence) return '<span class="sub">Not assessed</span>';
+      const likely = [['weather', 'Weather'], ['network', 'Network outage'], ['power', 'Power outage']]
+        .filter(([key]) => confidence[key] && confidence[key].confidence === 'High')
+        .map(([key, label]) => `<div title="${escapeHtml(confidence[key].detail)}">${label}</div>`);
+      return likely.length ? likely.join('') : '<span class="sub">No external cause detected</span>';
+    }
+
+    function render(data) {
+      lastData = data;
+      const outages = data.outages;
+      const ongoing = outages.filter(o => o.ongoing).length;
+      const longest = outages.reduce((a, b) => (!a || b.duration_seconds > a.duration_seconds ? b : a), null);
+      $('statAvailability').textContent = pct(data.availability);
+      $('statOutages').textContent = outages.length;
+      $('statOngoing').textContent = ongoing ? `${ongoing} ongoing now` : 'locations ≥ 90% down';
+      $('statOutageTime').textContent = outages.length ? duration(outages.reduce((s, o) => s + o.duration_seconds, 0)) : '—';
+      $('statLongest').textContent = longest ? duration(longest.duration_seconds) : '—';
+      $('statLongestWhere').textContent = longest ? longest.location : ' ';
+      $('fleetSubtitle').textContent = `Share of device checks that succeeded, per ${data.bucket_seconds >= 86400 ? 'day' : 'hour'}.`;
+
+      drawFleet(data);
+      $('fleetTable').innerHTML = data.fleet.map(p => `<tr><td>${escapeHtml(formatTime(p.t, data.bucket_seconds))}</td><td class="num">${pct(p.availability)}</td></tr>`).join('');
+
+      $('locationCount').textContent = data.locations.length;
+      const sparkValues = data.locations.flatMap(l => l.series.map(p => p.availability)).filter(v => v != null);
+      const sparkFloor = sparkValues.length ? yFloor(sparkValues) : 0;
+      $('locations').innerHTML = data.locations.length ? `<table><thead><tr><th>Location</th><th>Availability</th><th>Trend</th><th class="num">Outages</th><th class="num">Outage time</th></tr></thead><tbody>${
+        data.locations.map(l => `<tr><td>${escapeHtml(l.location)}</td><td>${healthPill(l.availability)}</td><td>${sparkline(l.series, data, sparkFloor)}</td><td class="num">${l.outages}</td><td class="num">${l.outages ? duration(l.outage_seconds) : '—'}</td></tr>`).join('')
+      }</tbody></table>` : '<div class="empty">No location history in this range. Locations appear once devices with a location have been checked.</div>';
+
+      $('outageCount').textContent = outages.length;
+      $('outages').innerHTML = outages.length ? `<table><thead><tr><th>Location</th><th>Started</th><th class="num">Duration</th><th class="num">Peak down</th><th>Likely cause</th><th>Ticket</th></tr></thead><tbody>${
+        outages.map(o => `<tr><td>${escapeHtml(o.location)}${o.ongoing ? '<span class="ongoing">Ongoing</span>' : ''}<div class="sub">${o.devices} device${o.devices === 1 ? '' : 's'}</div></td><td>${escapeHtml(formatTime(o.started_at, HOUR))}</td><td class="num">${duration(o.duration_seconds)}</td><td class="num">${pct(o.peak_percent_down, 0)}</td><td>${causeSummary(o.confidence)}</td><td>${o.ticket ? `<span class="ticket">${escapeHtml(o.ticket.number)}</span>` : '<span class="sub">—</span>'}</td></tr>`).join('')
+      }</tbody></table>` : '<div class="empty">No outages in this range.</div>';
+
+      $('devices').innerHTML = data.devices.length ? `<table><thead><tr><th>Device</th><th>Location</th><th>Availability</th></tr></thead><tbody>${
+        data.devices.map(d => `<tr><td class="mono">${escapeHtml(d.ip_address)}</td><td>${d.location ? escapeHtml(d.location) : '<span class="sub">—</span>'}</td><td>${healthPill(d.availability)}</td></tr>`).join('')
+      }</tbody></table>` : '<div class="empty">Every device answered every check in this range.</div>';
+    }
+
+    let currentRange = '24h';
+    try { const saved = localStorage.getItem('trendsRange'); if (document.querySelector(`.ranges button[data-range="${saved}"]`)) currentRange = saved; } catch {}
+
+    async function load() {
+      document.querySelectorAll('.ranges button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.range === currentRange)));
+      try {
+        const offset = -new Date().getTimezoneOffset();
+        const r = await fetch(`/api/trends?range=${encodeURIComponent(currentRange)}&utc_offset_minutes=${offset}`);
+        if (!r.ok) throw new Error();
+        render(await r.json());
+        $('error').style.display = 'none';
+      } catch {
+        $('error').textContent = 'Unable to load trends. Retrying shortly.';
+        $('error').style.display = 'block';
+      }
+    }
+
+    document.querySelector('.ranges').addEventListener('click', event => {
+      const button = event.target.closest('button[data-range]');
+      if (!button) return;
+      currentRange = button.dataset.range;
+      try { localStorage.setItem('trendsRange', currentRange); } catch {}
+      load();
+    });
+    new ResizeObserver(() => { if (lastData) drawFleet(lastData); }).observe($('fleetWrap'));
+    load();
+    setInterval(load, 60000);
+  </script>
+</body>
+</html>

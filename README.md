@@ -159,6 +159,40 @@ one simply starts right after. For several thousand devices, raise
 (just after startup, or just added) show as "Checking…", and their location
 isn't evaluated for an outage until they have been.
 
+## Trends and history
+
+The **Trends** page (link in the dashboard's top bar, or `/trends`) shows how
+the fleet has behaved over the last 24 hours, 7 days, 30 days, or 90 days:
+
+* **Fleet availability**: the share of device checks that succeeded, per
+  hour (per day for 30/90 days). Gaps in the line are periods when the
+  dashboard wasn't running, not outages.
+* **Locations**: availability, a trend sparkline, and outage count/time per
+  location, least available first.
+* **Outage history**: every time a location crossed the 90%-down threshold,
+  with start time, duration, peak percent down, the weather/network/power
+  causes that came back "High", and the ServiceNow ticket.
+* **Least available devices**: the devices that missed the most checks.
+
+History is recorded by the background reachability sweep (see above), so it
+builds up whenever the dashboard is running, whether or not anyone has it
+open. It's stored in `history.db` (SQLite) in the same per-user config
+directory as `.env`. Checks are rolled up into one row per device per hour
+rather than one per ping, so 500 devices kept for 90 days is about a million
+rows (roughly 100 MB). Data older than `HISTORY_RETENTION_DAYS` (default 90,
+editable on the Settings page under "History") is deleted automatically.
+Deleting `history.db` clears all history.
+
+Two caveats:
+
+* Outage cause and ticket details are filled in when the dashboard page
+  assesses an outage (as before, that happens while a browser has it open).
+  Outages that start and end with nobody watching are still recorded, just
+  marked "Not assessed".
+* If the dashboard is stopped during an outage, that outage is closed at the
+  last time it was seen. If the location is still down after a restart, a new
+  outage is recorded from that point.
+
 ## Authentication
 
 The dashboard is protected by a single admin password. Every page and API
@@ -347,6 +381,7 @@ network-outage-analyzer/
 │   ├── paths.py       # per-user data directory (.env, ip_addresses.json)
 │   ├── launcher.py     # packaged-app entry point (dashboard + open browser)
 │   ├── auth.py         # dashboard password hashing and session cookies
+│   ├── history.py      # SQLite reachability/outage history behind /trends
 │   └── services/
 │       └── weather.py
 │

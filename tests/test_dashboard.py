@@ -1,6 +1,7 @@
 import importlib
 import json
 import os
+import time
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -13,6 +14,7 @@ from fastapi.testclient import TestClient
 from app import auth as auth_module
 from app import config as config_module
 from app import dashboard as dashboard_module
+from app import history as history_module
 
 
 def signed_in_client(test_case):
@@ -35,12 +37,17 @@ class DashboardTests(unittest.TestCase):
         self.patcher = patch("app.ip_inventory.DEFAULT_IP_LIST_PATH", self.path)
         self.patcher.start()
         self.addCleanup(self.patcher.stop)
+        self.history = history_module.HistoryStore(Path(self.temp_dir.name) / "history.db")
+        history_patcher = patch("app.dashboard._history", self.history)
+        history_patcher.start()
+        self.addCleanup(history_patcher.stop)
         self.client = signed_in_client(self)
         inventory_module.load_devices.cache_clear() if hasattr(inventory_module.load_devices, "cache_clear") else None
         dashboard_module._cached_geocode.cache_clear()
         dashboard_module._active_outage_tickets.clear()
 
     def tearDown(self):
+        self.history.close()
         self.temp_dir.cleanup()
 
     def test_list_devices_returns_device_records(self):
@@ -189,6 +196,48 @@ class DashboardTests(unittest.TestCase):
             "location": "Branch Office",
             "location_source": "manual",
         }])
+
+    def test_record_sweep_rolls_up_history_and_opens_outages(self):
+        self.path.write_text(json.dumps([
+            {"ip_address": "10.0.0.1", "location": "HQ", "location_source": "manual"},
+            {"ip_address": "10.0.0.2", "location": "hq", "location_source": "manual"},
+            {"ip_address": "10.0.0.3", "location": "Branch", "location_source": "manual"},
+            {"ip_address": "10.0.0.4", "location": "", "location_source": "manual"},
+        ]), encoding="utf-8")
+        now = time.time()
+
+        dashboard_module._record_sweep(
+            {"10.0.0.1": False, "10.0.0.2": False, "10.0.0.3": True, "10.0.0.4": False}, now
+        )
+
+        trends = self.history.trends(now - 3600, 3600, now=now)
+        self.assertEqual(trends["availability"], 0.25)
+        self.assertEqual([o["location"] for o in trends["outages"]], ["HQ"])
+        self.assertEqual(trends["outages"][0]["devices"], 2)
+
+    def test_trends_api_returns_history_for_range(self):
+        now = time.time()
+        self.history.record_sweep({"10.0.0.1": True}, {"10.0.0.1": "HQ"}, now - 60)
+
+        response = self.client.get("/api/trends", params={"range": "7d", "utc_offset_minutes": -300})
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["range"], "7d")
+        self.assertEqual(data["bucket_seconds"], 3600)
+        self.assertEqual(data["availability"], 1.0)
+        self.assertEqual([loc["location"] for loc in data["locations"]], ["HQ"])
+
+    def test_trends_api_rejects_unknown_range(self):
+        response = self.client.get("/api/trends", params={"range": "1y"})
+
+        self.assertEqual(response.status_code, 422)
+
+    def test_trends_page_is_served(self):
+        response = self.client.get("/trends")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('id="fleetChart"', response.text)
 
 
 class SettingsApiTests(unittest.TestCase):

@@ -1,6 +1,8 @@
 """Browser dashboard for managing monitored devices and viewing weather context."""
 
 import ipaddress
+import logging
+import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from functools import lru_cache
@@ -11,7 +13,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
 import app.ip_inventory as inventory_module
-from app import auth, config, settings_store
+from app import auth, config, history, settings_store
 from app.analysis import correlator
 from app.services import servicenow
 from app.services.device_monitor import ReachabilityMonitor
@@ -27,6 +29,8 @@ lookup_location_snmp = inventory_module.lookup_location_snmp
 remove_device = inventory_module.remove_device
 save_devices = inventory_module.save_devices
 
+log = logging.getLogger(__name__)
+
 
 def _inventory_addresses():
     return [device["ip_address"] for device in inventory_module.load_devices(get_inventory_path())]
@@ -40,28 +44,69 @@ def _check_with_config(ip_addresses):
     )
 
 
+_history = history.HistoryStore()
+_PRUNE_INTERVAL_SECONDS = history.HOUR
+_last_prune = 0.0
+
+
+def _record_sweep(results, checked_at):
+    """Roll one sweep into the history store and open/close outage episodes.
+
+    Runs from the background sweep rather than /api/device-locations so
+    history accrues even when nobody has the dashboard open.
+    """
+    global _last_prune
+    locations = {
+        device["ip_address"]: device.get("location", "").strip()
+        for device in inventory_module.load_devices(get_inventory_path())
+    }
+    _history.record_sweep(results, locations, checked_at)
+
+    counts = {}  # casefolded location -> [display name, devices, unreachable]
+    for ip, reachable in results.items():
+        location = locations.get(ip)
+        if not location:
+            continue
+        entry = counts.setdefault(location.casefold(), [location, 0, 0])
+        entry[1] += 1
+        entry[2] += not reachable
+    _history.update_outages(
+        {name: (down / total, total) for name, total, down in counts.values()},
+        correlator.OUTAGE_THRESHOLD,
+        checked_at,
+    )
+
+    if checked_at - _last_prune >= _PRUNE_INTERVAL_SECONDS:
+        _history.prune(config.HISTORY_RETENTION_DAYS, now=checked_at)
+        _last_prune = checked_at
+
+
 # Looked up through lambdas so tests patching app.dashboard.check_devices /
-# get_inventory_path, and settings reloading app.config, take effect.
+# get_inventory_path / _history, and settings reloading app.config, take effect.
 _monitor = ReachabilityMonitor(
     get_addresses=lambda: _inventory_addresses(),
     check=lambda ip_addresses: _check_with_config(ip_addresses),
     interval_seconds=lambda: config.REACHABILITY_INTERVAL_SECONDS,
+    on_sweep=lambda results, checked_at: _record_sweep(results, checked_at),
 )
 
 
 @asynccontextmanager
 async def _lifespan(_app):
+    _history.close_stale_episodes()
     _monitor.start()
     try:
         yield
     finally:
         _monitor.stop()
+        _history.close()
 
 
 app = FastAPI(title="SignalWatch Dashboard", docs_url=None, redoc_url=None, lifespan=_lifespan)
 _DASHBOARD_FILE = Path(__file__).with_name("dashboard.html")
 _SETTINGS_FILE = Path(__file__).with_name("settings.html")
 _LOGIN_FILE = Path(__file__).with_name("login.html")
+_TRENDS_FILE = Path(__file__).with_name("trends.html")
 _INVENTORY_PATH = None
 
 
@@ -254,6 +299,39 @@ def update_settings(payload: SettingsUpdateRequest):
     return {"settings": updated}
 
 
+@app.get("/trends", response_class=HTMLResponse)
+def trends_page():
+    return _TRENDS_FILE.read_text(encoding="utf-8")
+
+
+# range -> (window, bucket). Hourly points up to a week, daily beyond that.
+_TREND_RANGES = {
+    "24h": (history.DAY, history.HOUR),
+    "7d": (7 * history.DAY, history.HOUR),
+    "30d": (30 * history.DAY, history.DAY),
+    "90d": (90 * history.DAY, history.DAY),
+}
+
+
+@app.get("/api/trends")
+def get_trends(range: str = "24h", utc_offset_minutes: int = 0):
+    if range not in _TREND_RANGES:
+        raise HTTPException(status_code=422, detail=f"range must be one of {', '.join(_TREND_RANGES)}.")
+    if not -14 * 60 <= utc_offset_minutes <= 14 * 60:
+        raise HTTPException(status_code=422, detail="utc_offset_minutes is out of range.")
+
+    window, bucket = _TREND_RANGES[range]
+    now = time.time()
+    return {
+        "range": range,
+        "since": now - window,
+        "until": now,
+        "bucket_seconds": bucket,
+        "retention_days": config.HISTORY_RETENTION_DAYS,
+        **_history.trends(now - window, bucket, now=now, utc_offset_seconds=utc_offset_minutes * 60),
+    }
+
+
 @app.get("/api/devices")
 def list_devices():
     return {"devices": inventory_module.load_devices(get_inventory_path())}
@@ -401,6 +479,10 @@ def list_device_locations():
                 )
                 if ticket:
                     marker["ticket"] = ticket
+                try:
+                    _history.annotate_outage(group["location"], confidence, ticket)
+                except Exception:
+                    log.exception("Could not record outage details for %s", group["location"])
             else:
                 _active_outage_tickets.pop(group["location"].casefold(), None)
 

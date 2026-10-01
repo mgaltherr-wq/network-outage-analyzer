@@ -41,6 +41,7 @@ SETTINGS_FIELDS = [
     SettingField("REACHABILITY_INTERVAL_SECONDS", "Reachability check interval (seconds)", TEXT, "Device monitoring"),
     SettingField("PING_TIMEOUT_SECONDS", "Ping timeout (seconds)", TEXT, "Device monitoring"),
     SettingField("PING_CONCURRENCY", "Max concurrent pings", TEXT, "Device monitoring"),
+    SettingField("HISTORY_RETENTION_DAYS", "Keep history for (days)", TEXT, "History"),
 ]
 
 FIELDS_BY_KEY = {field.key: field for field in SETTINGS_FIELDS}

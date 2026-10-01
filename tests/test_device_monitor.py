@@ -64,6 +64,30 @@ class ReachabilityMonitorTests(unittest.TestCase):
         self.assertTrue(recovered.wait(5))
         self.assertEqual(monitor.snapshot(["10.0.0.1"]), {"10.0.0.1": True})
 
+    def test_on_sweep_receives_results(self):
+        calls = []
+        monitor = ReachabilityMonitor(
+            lambda: ["10.0.0.1", "10.0.0.2"],
+            lambda ips: (["10.0.0.1"], ["10.0.0.2"]),
+            on_sweep=lambda results, checked_at: calls.append((results, checked_at)),
+        )
+
+        monitor.sweep()
+
+        [(results, checked_at)] = calls
+        self.assertEqual(results, {"10.0.0.1": True, "10.0.0.2": False})
+        self.assertIsInstance(checked_at, float)
+
+    def test_failing_on_sweep_still_updates_the_cache(self):
+        def on_sweep(results, checked_at):
+            raise RuntimeError("history unavailable")
+
+        monitor = ReachabilityMonitor(lambda: ["10.0.0.1"], lambda ips: (ips, []), on_sweep=on_sweep)
+
+        with self.assertLogs("app.services.device_monitor", level="ERROR"):
+            monitor.sweep()
+        self.assertEqual(monitor.snapshot(["10.0.0.1"]), {"10.0.0.1": True})
+
 
 if __name__ == "__main__":
     unittest.main()

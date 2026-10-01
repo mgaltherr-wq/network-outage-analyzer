@@ -22,6 +22,7 @@ a = Analysis(
         (str(ROOT / "app" / "dashboard.html"), "app"),
         (str(ROOT / "app" / "settings.html"), "app"),
         (str(ROOT / "app" / "login.html"), "app"),
+        (str(ROOT / "app" / "trends.html"), "app"),
     ],
     hiddenimports=hiddenimports,
     hookspath=[],

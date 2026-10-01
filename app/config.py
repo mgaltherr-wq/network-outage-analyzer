@@ -29,6 +29,9 @@ PING_TIMEOUT_SECONDS = _positive_number("PING_TIMEOUT_SECONDS", 1, int)
 PING_CONCURRENCY = _positive_number("PING_CONCURRENCY", 64, int)
 REACHABILITY_INTERVAL_SECONDS = _positive_number("REACHABILITY_INTERVAL_SECONDS", 15.0)
 
+# Reachability/outage history behind the Trends page (see app/history.py).
+HISTORY_RETENTION_DAYS = _positive_number("HISTORY_RETENTION_DAYS", 90, int)
+
 
 SERVICENOW_INSTANCE_URL = os.getenv(
     "SERVICENOW_INSTANCE_URL",

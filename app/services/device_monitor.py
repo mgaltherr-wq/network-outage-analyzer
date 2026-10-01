@@ -14,14 +14,17 @@ log = logging.getLogger(__name__)
 
 
 class ReachabilityMonitor:
-    def __init__(self, get_addresses, check, interval_seconds=15):
+    def __init__(self, get_addresses, check, interval_seconds=15, on_sweep=None):
         """*get_addresses* returns the IPs to sweep; *check* takes a list of
         IPs and returns (reachable, unreachable), like
         reachability.check_devices. *interval_seconds* may be a number or a
-        callable, re-read before every wait so settings changes apply live."""
+        callable, re-read before every wait so settings changes apply live.
+        *on_sweep*, if given, is called with ({ip: reachable}, checked_at)
+        after each sweep (e.g. to record history)."""
         self._get_addresses = get_addresses
         self._check = check
         self._interval = interval_seconds
+        self._on_sweep = on_sweep
         self._results = {}  # ip -> (reachable: bool, checked_at: float)
         self._lock = threading.Lock()
         self._wake = threading.Event()
@@ -63,11 +66,19 @@ class ReachabilityMonitor:
         reachable, _ = self._check(addresses)
         checked_at = time.time()
         reachable_set = set(reachable)
+        results = {ip: ip in reachable_set for ip in addresses}
 
         with self._lock:
             # Rebuild rather than update, so removed devices drop out.
-            self._results = {ip: (ip in reachable_set, checked_at) for ip in addresses}
+            self._results = {ip: (up, checked_at) for ip, up in results.items()}
         self.last_sweep_seconds = time.monotonic() - started
+
+        if self._on_sweep:
+            # A failing hook mustn't stop the cache above from being current.
+            try:
+                self._on_sweep(results, checked_at)
+            except Exception:
+                log.exception("Post-sweep hook failed")
 
     def _run(self):
         while not self._stop.is_set():

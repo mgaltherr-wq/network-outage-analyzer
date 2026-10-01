@@ -4,10 +4,21 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from app import config, dashboard
+from app import config, dashboard, history
 
 
 class DeviceLocationTests(unittest.TestCase):
+    def setUp(self):
+        # Outage episodes get annotated here; keep that out of the real history.db.
+        temp_dir = TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        store = history.HistoryStore(Path(temp_dir.name) / "history.db")
+        self.addCleanup(store.close)
+        patcher = patch("app.dashboard._history", store)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        dashboard._active_outage_tickets.clear()
+
     def test_groups_devices_at_same_location(self):
         with TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "ip_addresses.json"
