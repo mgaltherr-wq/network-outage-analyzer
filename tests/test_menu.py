@@ -87,6 +87,26 @@ class ShowStartupMenuTests(unittest.TestCase):
 
         update_settings.assert_called_once_with({"SNMP_VERSION": "1c"})
 
+    @patch("app.menu.auth.set_password")
+    @patch("app.menu.auth.is_password_set", return_value=False)
+    @patch("app.menu.getpass", side_effect=["correct horse", "correct horse"])
+    @patch("app.menu.load_ip_addresses", return_value=[])
+    @patch("builtins.input", side_effect=["5", "p", "0", "6"])
+    def test_settings_menu_sets_dashboard_password(self, _input, _load, _getpass, _is_set, set_password):
+        show_startup_menu()
+
+        set_password.assert_called_once_with("correct horse")
+
+    @patch("app.menu.auth.set_password")
+    @patch("app.menu.auth.is_password_set", return_value=True)
+    @patch("app.menu.getpass", side_effect=["correct horse", "typo horse"])
+    @patch("app.menu.load_ip_addresses", return_value=[])
+    @patch("builtins.input", side_effect=["5", "P", "0", "6"])
+    def test_settings_menu_rejects_mismatched_password_confirmation(self, _input, _load, _getpass, _is_set, set_password):
+        show_startup_menu()
+
+        set_password.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

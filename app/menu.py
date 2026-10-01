@@ -1,5 +1,6 @@
 from getpass import getpass
 
+from app import auth
 from app.ip_inventory import (
     add_ip_address,
     load_ip_addresses,
@@ -101,11 +102,17 @@ def _show_settings_menu():
             status = setting["value"] if setting["is_set"] else "not set"
             print(f"{index}. {setting['label']} ({status})")
             index_to_key[str(index)] = setting["key"]
+        print("-- Dashboard --")
+        password_status = "set" if auth.is_password_set() else "not set"
+        print(f"P. Dashboard password ({password_status})")
         print("0. Back")
 
         choice = input("Select a setting to change: ").strip()
         if choice == "0":
             return
+        if choice.casefold() == "p":
+            _set_dashboard_password_prompt()
+            continue
 
         key = index_to_key.get(choice)
         if not key:
@@ -127,3 +134,23 @@ def _update_setting_prompt(key):
 
     update_settings({key: "" if value == "-" else value})
     print(f"Updated {field.label}.")
+
+
+def _set_dashboard_password_prompt():
+    password = getpass(f"New dashboard password (min {auth.MIN_PASSWORD_LENGTH} characters, blank to cancel): ")
+    if not password:
+        print("No change made.")
+        return
+
+    try:
+        auth.validate_new_password(password)
+    except ValueError as exc:
+        print(exc)
+        return
+
+    if getpass("Confirm new dashboard password: ") != password:
+        print("Passwords do not match. No change made.")
+        return
+
+    auth.set_password(password)
+    print("Dashboard password updated. Existing dashboard sessions have been signed out.")

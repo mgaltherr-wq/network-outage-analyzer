@@ -138,9 +138,35 @@ lets you add or remove IP addresses, and includes a U.S.-focused weather
 map with an optional weather overlay.
 
 Note this differs from the packaged installer, which binds to
-`127.0.0.1` only by default (see [Download](#download)) since the dashboard
-has no authentication — `--host 0.0.0.0` here is an explicit opt-in for
-intentionally monitoring devices from another machine on your network.
+`127.0.0.1` only by default (see [Download](#download)) — `--host 0.0.0.0`
+here is an explicit opt-in for intentionally monitoring devices from another
+machine on your network.
+
+## Authentication
+
+The dashboard is protected by a single admin password. Every page and API
+route requires signing in, except the login page itself.
+
+* **First run** — with no password set yet, opening the dashboard shows a
+  "Create a dashboard password" page (minimum 8 characters). This is only
+  offered to browsers on the machine running the dashboard, so another host
+  on the network can't claim an unconfigured instance. On a headless server,
+  set it from the CLI instead (below).
+* **Changing it** — on the Settings page (requires the current password), or
+  from the CLI: "5. Settings" → "P. Dashboard password". The CLI path doesn't
+  ask for the current password, so it doubles as the recovery path if it's
+  forgotten. Changing the password signs out every other browser.
+* **Sessions** last 12 hours, in an `HttpOnly`, `SameSite=Strict` cookie.
+  After 5 failed sign-in attempts from one address, further attempts are
+  refused for a minute.
+
+The password is stored as a salted scrypt hash in `auth.json`, in the same
+per-user config directory as `.env`. Deleting that file resets the dashboard
+to first-run setup.
+
+The dashboard serves plain HTTP, so on anything other than localhost the
+password and session cookie cross the network unencrypted. If you expose it
+beyond a trusted network, put it behind a TLS-terminating reverse proxy.
 
 ## Settings
 
@@ -158,9 +184,9 @@ editing `.env` by hand:
 Both paths write to the same `.env` file and apply immediately to the
 running process — no restart required.
 
-> Note: the dashboard has no authentication, so anyone who can reach the
-> port can view masked settings and change them. Keep it on a trusted
-> network, and don't expose port 8000 to the public internet.
+> Note: the Settings page is behind the dashboard login (see
+> [Authentication](#authentication)). Still, don't expose port 8000 to the
+> public internet — the dashboard serves plain HTTP.
 
 ## Building the installers yourself
 
@@ -303,6 +329,7 @@ network-outage-analyzer/
 │   ├── config.py
 │   ├── paths.py       # per-user data directory (.env, ip_addresses.json)
 │   ├── launcher.py     # packaged-app entry point (dashboard + open browser)
+│   ├── auth.py         # dashboard password hashing and session cookies
 │   └── services/
 │       └── weather.py
 │

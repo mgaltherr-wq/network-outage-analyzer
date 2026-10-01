@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SignalWatch | Sign in</title>
+  <style>
+    :root { --ink:#10233f; --muted:#718096; --line:#e7edf4; --blue:#1769e0; --blue-dark:#104fae; --panel:#fff; --bg:#f4f7fb; --red:#df4054; }
+    * { box-sizing:border-box; } body { margin:0; font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--ink); background:var(--bg); min-height:100vh; display:grid; place-items:center; padding:20px; }
+    button,input { font:inherit; }
+    .brand { display:flex; align-items:center; justify-content:center; gap:11px; font-size:19px; font-weight:750; letter-spacing:-.5px; margin-bottom:22px; }
+    .mark { width:31px;height:31px;border-radius:9px;background:linear-gradient(135deg,#2178ed,#1154c4);display:grid;place-items:center;color:white;font-size:18px; box-shadow:0 5px 12px #1769e044; }
+    .card{width:100%;max-width:380px;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 2px 4px #243b5605;padding:26px 24px}
+    h1{font-size:21px;letter-spacing:-.5px;margin:0 0 6px}
+    p.lead{margin:0 0 20px;color:var(--muted);font-size:14px}
+    label{display:block;font-size:13px;font-weight:650;margin:0 0 7px}
+    input{width:100%;border:1px solid #d7e1ee;border-radius:9px;padding:10px 12px;outline:none;color:var(--ink);margin-bottom:14px}
+    input:focus{border-color:#4b91ed;box-shadow:0 0 0 3px #2779df18}
+    .btn{width:100%;border:0;border-radius:9px;padding:11px 18px;font-weight:700;cursor:pointer;background:var(--blue);color:#fff}
+    .btn:hover{background:var(--blue-dark)} .btn:disabled{background:#9fb9dd;cursor:default}
+    .error{color:var(--red);font-size:13px;font-weight:600;margin:0 0 14px;display:none}
+    .hidden{display:none}
+  </style>
+</head>
+<body>
+  <main>
+    <div class="brand"><span class="mark">⌁</span> SignalWatch</div>
+    <form class="card" id="form">
+      <h1 id="heading">Sign in</h1>
+      <p class="lead" id="lead">Enter the dashboard password to continue.</p>
+      <div class="error" id="error"></div>
+      <div id="fields">
+        <label for="password">Password</label>
+        <input type="password" id="password" autocomplete="current-password" required>
+        <div class="hidden" id="confirmRow">
+          <label for="confirm">Confirm password</label>
+          <input type="password" id="confirm" autocomplete="new-password">
+        </div>
+        <button class="btn" type="submit" id="submit">Sign in</button>
+      </div>
+    </form>
+  </main>
+  <script>
+    const form = document.getElementById('form'), errorEl = document.getElementById('error');
+    const password = document.getElementById('password'), confirm = document.getElementById('confirm');
+    const submit = document.getElementById('submit');
+    let mode = 'login';
+
+    function showError(message) { errorEl.textContent = message; errorEl.style.display = message ? 'block' : 'none'; }
+
+    async function init() {
+      try {
+        const r = await fetch('/api/auth/status');
+        const status = await r.json();
+        if (status.authenticated) { location.replace('/'); return; }
+        if (!status.password_set) {
+          if (status.setup_allowed) {
+            mode = 'setup';
+            document.getElementById('heading').textContent = 'Create a dashboard password';
+            document.getElementById('lead').textContent = 'No password is set yet. Choose one (at least 8 characters) to protect the dashboard and its settings.';
+            document.getElementById('confirmRow').classList.remove('hidden');
+            password.autocomplete = 'new-password';
+            confirm.required = true;
+            submit.textContent = 'Create password';
+          } else {
+            document.getElementById('heading').textContent = 'Setup required';
+            document.getElementById('lead').textContent = 'No dashboard password is set. Open the dashboard on the machine it runs on, or set one from the CLI settings menu (python run.py → 5. Settings).';
+            document.getElementById('fields').classList.add('hidden');
+            return;
+          }
+        }
+        password.focus();
+      } catch {
+        showError('Unable to reach the dashboard. Please refresh the page.');
+      }
+    }
+
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      showError('');
+      if (mode === 'setup' && password.value !== confirm.value) { showError('Passwords do not match.'); return; }
+      submit.disabled = true;
+      try {
+        const r = await fetch(mode === 'setup' ? '/api/auth/setup' : '/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: password.value }),
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Sign in failed.');
+        location.replace('/');
+      } catch (err) {
+        showError(err.message || 'Sign in failed.');
+        password.select();
+      } finally {
+        submit.disabled = false;
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>

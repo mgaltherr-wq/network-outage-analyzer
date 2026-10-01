@@ -10,8 +10,22 @@ import app.ip_inventory as inventory_module
 
 from fastapi.testclient import TestClient
 
+from app import auth as auth_module
 from app import config as config_module
 from app import dashboard as dashboard_module
+
+
+def signed_in_client(test_case):
+    """A TestClient already past the login wall, with auth.json in a temp dir."""
+    auth_dir = TemporaryDirectory()
+    test_case.addCleanup(auth_dir.cleanup)
+    patcher = patch("app.auth.AUTH_PATH", Path(auth_dir.name) / "auth.json")
+    patcher.start()
+    test_case.addCleanup(patcher.stop)
+    auth_module.set_password("test-password")
+    client = TestClient(dashboard_module.app)
+    client.post("/api/auth/login", json={"password": "test-password"}).raise_for_status()
+    return client
 
 
 class DashboardTests(unittest.TestCase):
@@ -21,7 +35,7 @@ class DashboardTests(unittest.TestCase):
         self.patcher = patch("app.ip_inventory.DEFAULT_IP_LIST_PATH", self.path)
         self.patcher.start()
         self.addCleanup(self.patcher.stop)
-        self.client = TestClient(dashboard_module.app)
+        self.client = signed_in_client(self)
         inventory_module.load_devices.cache_clear() if hasattr(inventory_module.load_devices, "cache_clear") else None
         dashboard_module._cached_geocode.cache_clear()
         dashboard_module._active_outage_tickets.clear()
@@ -183,7 +197,7 @@ class SettingsApiTests(unittest.TestCase):
         self.patcher.start()
         self.config_env_patcher = patch("app.config.ENV_PATH", self.env_path)
         self.config_env_patcher.start()
-        self.client = TestClient(dashboard_module.app)
+        self.client = signed_in_client(self)
 
     def tearDown(self):
         self.config_env_patcher.stop()

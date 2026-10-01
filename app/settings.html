@@ -13,6 +13,10 @@
     .mark { width:31px;height:31px;border-radius:9px;background:linear-gradient(135deg,#2178ed,#1154c4);display:grid;place-items:center;color:white;font-size:18px; box-shadow:0 5px 12px #1769e044; }
     .back-link { color:#60718a; text-decoration:none; font-size:14px; font-weight:650; display:flex; align-items:center; gap:6px; }
     .back-link:hover { color:var(--ink); }
+    .top-links { display:flex; align-items:center; gap:18px; }
+    .signout { background:#fff; border:1px solid var(--line); border-radius:8px; padding:6px 11px; color:#60718a; font-size:13px; font-weight:650; cursor:pointer; }
+    .signout:hover { background:#f0f4fa; color:var(--ink); }
+    .password-actions { display:flex; align-items:center; gap:14px; padding-top:14px; }
     main { max-width:840px;margin:auto;padding:36px 42px 64px; }
     .eyebrow{color:#657895;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:7px}
     h1{font-size:30px;letter-spacing:-1px;margin:0 0 7px}
@@ -48,7 +52,7 @@
 <body>
   <header class="topbar">
     <div class="brand"><span class="mark">⌁</span> SignalWatch</div>
-    <a class="back-link" href="/">&larr; Back to dashboard</a>
+    <div class="top-links"><a class="back-link" href="/">&larr; Back to dashboard</a><button type="button" class="signout" id="signOutButton">Sign out</button></div>
   </header>
   <main>
     <div class="eyebrow">Configuration</div>
@@ -59,8 +63,35 @@
       <button class="btn btn-save" id="saveButton" type="button" disabled>Save changes</button>
       <span class="banner" id="banner"></span>
     </div>
+    <section class="card" style="margin-top:28px">
+      <div class="card-header"><h2>Dashboard password</h2></div>
+      <form class="field-list" id="passwordForm">
+        <div class="field">
+          <label for="currentPassword">Current password</label>
+          <div class="field-input-row"><input type="password" id="currentPassword" autocomplete="current-password" required></div>
+        </div>
+        <div class="field">
+          <label for="newPassword">New password</label>
+          <div class="field-input-row"><input type="password" id="newPassword" autocomplete="new-password" minlength="8" required></div>
+          <div class="hint">At least 8 characters. Changing it signs out every other browser.</div>
+        </div>
+        <div class="field">
+          <label for="confirmPassword">Confirm new password</label>
+          <div class="field-input-row"><input type="password" id="confirmPassword" autocomplete="new-password" required></div>
+        </div>
+        <div class="password-actions">
+          <button class="btn btn-save" id="passwordButton" type="submit">Change password</button>
+          <span class="banner" id="passwordBanner"></span>
+        </div>
+      </form>
+    </section>
   </main>
   <script>
+    // Send the user back to the login page if their session expires mid-use.
+    const nativeFetch = window.fetch.bind(window);
+    window.fetch = async (input, init) => { const r = await nativeFetch(input, init); if (r.status === 401 && String(input).startsWith('/api/') && !String(input).startsWith('/api/auth/')) location.href = '/login'; return r; };
+    async function signOut() { try { await nativeFetch('/api/auth/logout', { method: 'POST' }); } finally { location.href = '/login'; } }
+    document.getElementById('signOutButton').addEventListener('click', signOut);
     const groupsEl = document.getElementById('groups');
     const saveButton = document.getElementById('saveButton');
     const banner = document.getElementById('banner');
@@ -168,6 +199,34 @@
       } catch (err) {
         showBanner(err.message || 'Could not save settings.', 'error');
         saveButton.disabled = false;
+      }
+    });
+
+    const passwordForm = document.getElementById('passwordForm');
+    const passwordBanner = document.getElementById('passwordBanner');
+    const passwordButton = document.getElementById('passwordButton');
+    passwordForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const current = document.getElementById('currentPassword');
+      const next = document.getElementById('newPassword');
+      const confirmNext = document.getElementById('confirmPassword');
+      const show = (message, kind) => { passwordBanner.textContent = message; passwordBanner.className = `banner show ${kind}`; };
+      if (next.value !== confirmNext.value) { show('New passwords do not match.', 'error'); return; }
+      passwordButton.disabled = true;
+      try {
+        const response = await fetch('/api/auth/password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ current_password: current.value, new_password: next.value }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Could not change password.');
+        passwordForm.reset();
+        show('Password changed.', 'success');
+      } catch (err) {
+        show(err.message || 'Could not change password.', 'error');
+      } finally {
+        passwordButton.disabled = false;
       }
     });
 

@@ -1,14 +1,15 @@
 """Browser dashboard for managing monitored devices and viewing weather context."""
 
+import ipaddress
 from functools import lru_cache
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
 import app.ip_inventory as inventory_module
-from app import config, settings_store
+from app import auth, config, settings_store
 from app.analysis import correlator
 from app.services import servicenow
 from app.services.network_outages import check_network_outage
@@ -27,6 +28,7 @@ save_devices = inventory_module.save_devices
 app = FastAPI(title="SignalWatch Dashboard", docs_url=None, redoc_url=None)
 _DASHBOARD_FILE = Path(__file__).with_name("dashboard.html")
 _SETTINGS_FILE = Path(__file__).with_name("settings.html")
+_LOGIN_FILE = Path(__file__).with_name("login.html")
 _INVENTORY_PATH = None
 
 
@@ -41,6 +43,56 @@ class DeviceRequest(BaseModel):
 
 class SettingsUpdateRequest(BaseModel):
     values: dict[str, str]
+
+
+class PasswordRequest(BaseModel):
+    password: str
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+# Everything else requires a valid session cookie; see require_login below.
+_PUBLIC_PATHS = {"/login", "/api/auth/status", "/api/auth/login", "/api/auth/setup"}
+_login_throttle = auth.LoginThrottle()
+
+
+def _client_host(request):
+    return request.client.host if request.client else ""
+
+
+def _is_loopback_client(request):
+    try:
+        return ipaddress.ip_address(_client_host(request)).is_loopback
+    except ValueError:
+        return False
+
+
+def _is_authenticated(request):
+    return auth.verify_session_token(request.cookies.get(auth.SESSION_COOKIE))
+
+
+def _set_session_cookie(request, response):
+    response.set_cookie(
+        auth.SESSION_COOKIE,
+        auth.create_session_token(),
+        max_age=auth.SESSION_MAX_AGE_SECONDS,
+        httponly=True,
+        samesite="strict",
+        secure=request.url.scheme == "https",
+    )
+    return response
+
+
+@app.middleware("http")
+async def require_login(request: Request, call_next):
+    if request.url.path in _PUBLIC_PATHS or _is_authenticated(request):
+        return await call_next(request)
+    if request.url.path.startswith("/api/"):
+        return JSONResponse({"detail": "Not authenticated."}, status_code=401)
+    return RedirectResponse("/login", status_code=303)
 
 
 @lru_cache(maxsize=256)
@@ -74,6 +126,79 @@ def _ensure_outage_ticket(location, ip_addresses, percent_down, confidence):
 @app.get("/", response_class=HTMLResponse)
 def dashboard():
     return _DASHBOARD_FILE.read_text(encoding="utf-8")
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page():
+    return _LOGIN_FILE.read_text(encoding="utf-8")
+
+
+@app.get("/api/auth/status")
+def auth_status(request: Request):
+    password_set = auth.is_password_set()
+    return {
+        "password_set": password_set,
+        # First-run setup is only offered to the machine the dashboard runs on,
+        # so nobody else on the network can claim an unconfigured instance.
+        "setup_allowed": not password_set and _is_loopback_client(request),
+        "authenticated": _is_authenticated(request),
+    }
+
+
+@app.post("/api/auth/setup")
+def setup_password(payload: PasswordRequest, request: Request):
+    if auth.is_password_set():
+        raise HTTPException(status_code=409, detail="A password is already set.")
+    if not _is_loopback_client(request):
+        raise HTTPException(
+            status_code=403,
+            detail="Set the first password from the machine running the dashboard, "
+                   "or from the CLI settings menu.",
+        )
+    try:
+        auth.set_password(payload.password)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    return _set_session_cookie(request, JSONResponse({"ok": True}))
+
+
+@app.post("/api/auth/login")
+def login(payload: PasswordRequest, request: Request):
+    client = _client_host(request)
+    retry_after = _login_throttle.retry_after(client)
+    if retry_after:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Too many failed attempts. Try again in {retry_after} seconds.",
+            headers={"Retry-After": str(retry_after)},
+        )
+    if not auth.verify_password(payload.password):
+        _login_throttle.record_failure(client)
+        raise HTTPException(status_code=401, detail="Incorrect password.")
+
+    _login_throttle.reset(client)
+    return _set_session_cookie(request, JSONResponse({"ok": True}))
+
+
+@app.post("/api/auth/logout")
+def logout():
+    response = JSONResponse({"ok": True})
+    response.delete_cookie(auth.SESSION_COOKIE)
+    return response
+
+
+@app.post("/api/auth/password")
+def change_password(payload: PasswordChangeRequest, request: Request):
+    if not auth.verify_password(payload.current_password):
+        raise HTTPException(status_code=403, detail="Current password is incorrect.")
+    try:
+        auth.set_password(payload.new_password)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    # Changing the password invalidates every session, including this one.
+    return _set_session_cookie(request, JSONResponse({"ok": True}))
 
 
 @app.get("/settings", response_class=HTMLResponse)
