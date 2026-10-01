@@ -38,6 +38,9 @@ SETTINGS_FIELDS = [
     SettingField("SERVICENOW_INSTANCE_URL", "ServiceNow instance URL", TEXT, "ServiceNow"),
     SettingField("SERVICENOW_CLIENT_ID", "ServiceNow OAuth client ID", TEXT, "ServiceNow"),
     SettingField("SERVICENOW_CLIENT_SECRET", "ServiceNow OAuth client secret", SECRET, "ServiceNow"),
+    SettingField("REACHABILITY_INTERVAL_SECONDS", "Reachability check interval (seconds)", TEXT, "Device monitoring"),
+    SettingField("PING_TIMEOUT_SECONDS", "Ping timeout (seconds)", TEXT, "Device monitoring"),
+    SettingField("PING_CONCURRENCY", "Max concurrent pings", TEXT, "Device monitoring"),
 ]
 
 FIELDS_BY_KEY = {field.key: field for field in SETTINGS_FIELDS}

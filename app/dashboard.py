@@ -1,6 +1,8 @@
 """Browser dashboard for managing monitored devices and viewing weather context."""
 
 import ipaddress
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import asynccontextmanager
 from functools import lru_cache
 from pathlib import Path
 
@@ -12,6 +14,7 @@ import app.ip_inventory as inventory_module
 from app import auth, config, settings_store
 from app.analysis import correlator
 from app.services import servicenow
+from app.services.device_monitor import ReachabilityMonitor
 from app.services.network_outages import check_network_outage
 from app.services.power_outages import check_power_outage
 from app.services.reachability import check_devices
@@ -25,7 +28,37 @@ remove_device = inventory_module.remove_device
 save_devices = inventory_module.save_devices
 
 
-app = FastAPI(title="SignalWatch Dashboard", docs_url=None, redoc_url=None)
+def _inventory_addresses():
+    return [device["ip_address"] for device in inventory_module.load_devices(get_inventory_path())]
+
+
+def _check_with_config(ip_addresses):
+    return check_devices(
+        ip_addresses,
+        timeout_seconds=config.PING_TIMEOUT_SECONDS,
+        max_concurrent=config.PING_CONCURRENCY,
+    )
+
+
+# Looked up through lambdas so tests patching app.dashboard.check_devices /
+# get_inventory_path, and settings reloading app.config, take effect.
+_monitor = ReachabilityMonitor(
+    get_addresses=lambda: _inventory_addresses(),
+    check=lambda ip_addresses: _check_with_config(ip_addresses),
+    interval_seconds=lambda: config.REACHABILITY_INTERVAL_SECONDS,
+)
+
+
+@asynccontextmanager
+async def _lifespan(_app):
+    _monitor.start()
+    try:
+        yield
+    finally:
+        _monitor.stop()
+
+
+app = FastAPI(title="SignalWatch Dashboard", docs_url=None, redoc_url=None, lifespan=_lifespan)
 _DASHBOARD_FILE = Path(__file__).with_name("dashboard.html")
 _SETTINGS_FILE = Path(__file__).with_name("settings.html")
 _LOGIN_FILE = Path(__file__).with_name("login.html")
@@ -226,16 +259,28 @@ def list_devices():
     return {"devices": inventory_module.load_devices(get_inventory_path())}
 
 
+def _device_reachability(ip_addresses):
+    """Return {ip: True/False/None}, None meaning not checked yet.
+
+    Reads the background monitor's cache when it's running (the normal case
+    under uvicorn). Without it (e.g. a TestClient used outside a `with`
+    block), falls back to pinging synchronously.
+    """
+    if _monitor.running:
+        return _monitor.snapshot(ip_addresses)
+    reachable, _ = _check_with_config(ip_addresses)
+    reachable_set = set(reachable)
+    return {ip: ip in reachable_set for ip in ip_addresses}
+
+
 @app.get("/api/devices/status")
 def device_status():
-    devices = inventory_module.load_devices(get_inventory_path())
-    ip_addresses = [device["ip_address"] for device in devices]
-    reachable, _ = check_devices(ip_addresses)
-    reachable_set = set(reachable)
+    ip_addresses = _inventory_addresses()
+    status = _device_reachability(ip_addresses)
 
     return {
         "devices": [
-            {"ip_address": ip, "reachable": ip in reachable_set}
+            {"ip_address": ip, "reachable": status[ip]}
             for ip in ip_addresses
         ]
     }
@@ -245,13 +290,22 @@ def device_status():
 def refresh_device_locations_from_snmp():
     devices = inventory_module.load_devices(get_inventory_path())
     updated_addresses = []
-    for device in devices:
-        location = lookup_location_snmp(
+
+    def lookup(device):
+        return lookup_location_snmp(
             device["ip_address"],
             community=config.SNMP_COMMUNITY,
             timeout=config.SNMP_TIMEOUT_SECONDS,
             version=config.SNMP_VERSION,
         )
+
+    # Queried in parallel for the same reason pings are: one at a time, a
+    # large inventory of non-responding devices took timeout * N to finish.
+    workers = max(1, min(config.PING_CONCURRENCY, len(devices)))
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="snmp") as pool:
+        locations = list(pool.map(lookup, devices))
+
+    for device, location in zip(devices, locations):
         if not location:
             continue
         if device.get("location") != location or device.get("location_source") != "snmp":
@@ -311,8 +365,15 @@ def list_device_locations():
         except Exception:
             coordinates = None
         if coordinates:
-            reachable, unreachable = check_devices(group["devices"])
-            if not unreachable:
+            status_by_ip = _device_reachability(group["devices"])
+            reachable = [ip for ip in group["devices"] if status_by_ip[ip] is True]
+            unreachable = [ip for ip in group["devices"] if status_by_ip[ip] is False]
+            pending = len(group["devices"]) - len(reachable) - len(unreachable)
+            if pending:
+                # Don't judge (or ticket) a site on a partial picture right
+                # after startup or an add; the next sweep fills it in.
+                status = "pending"
+            elif not unreachable:
                 status = "up"
             elif not reachable:
                 status = "down"
@@ -328,7 +389,9 @@ def list_device_locations():
             }
 
             percent_down = len(unreachable) / len(group["devices"])
-            if percent_down >= correlator.OUTAGE_THRESHOLD:
+            if pending:
+                pass
+            elif percent_down >= correlator.OUTAGE_THRESHOLD:
                 confidence = _assess_location_confidence(coordinates)
                 if confidence:
                     marker["confidence"] = confidence
@@ -357,7 +420,9 @@ def create_device(device: DeviceRequest):
     if not added:
         raise HTTPException(status_code=409, detail="That device is already monitored.")
 
-    return {"devices": save_devices(updated, get_inventory_path())}
+    saved = save_devices(updated, get_inventory_path())
+    _monitor.request_sweep()
+    return {"devices": saved}
 
 
 @app.delete("/api/devices/{ip_address}")

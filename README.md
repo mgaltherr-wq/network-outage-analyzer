@@ -142,6 +142,23 @@ Note this differs from the packaged installer, which binds to
 here is an explicit opt-in for intentionally monitoring devices from another
 machine on your network.
 
+## Device monitoring at scale
+
+Reachability is checked by one background sweep shared by every browser,
+not by each page request. Every `REACHABILITY_INTERVAL_SECONDS` (default 15)
+it pings every device in parallel — up to `PING_CONCURRENCY` (default 64) at
+once, each waiting at most `PING_TIMEOUT_SECONDS` (default 1) — and the
+dashboard reads the cached results. All three can be changed on the Settings
+page under "Device monitoring".
+
+Worst case (every device down), a sweep takes about
+`devices / PING_CONCURRENCY × PING_TIMEOUT_SECONDS`, e.g. ~10s for 500
+devices at the defaults. If a sweep runs longer than the interval, the next
+one simply starts right after. For several thousand devices, raise
+`PING_CONCURRENCY` and/or the interval. Devices that haven't been checked yet
+(just after startup, or just added) show as "Checking…", and their location
+isn't evaluated for an outage until they have been.
+
 ## Authentication
 
 The dashboard is protected by a single admin password. Every page and API

@@ -70,7 +70,11 @@ class DashboardTests(unittest.TestCase):
             {"ip_address": "10.0.0.1", "reachable": True},
             {"ip_address": "10.0.0.2", "reachable": False},
         ]})
-        check_devices.assert_called_once_with(["10.0.0.1", "10.0.0.2"])
+        check_devices.assert_called_once_with(
+            ["10.0.0.1", "10.0.0.2"],
+            timeout_seconds=config_module.PING_TIMEOUT_SECONDS,
+            max_concurrent=config_module.PING_CONCURRENCY,
+        )
 
     def test_dashboard_page_includes_location_input(self):
         response = self.client.get("/")

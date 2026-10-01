@@ -4,7 +4,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from app import dashboard
+from app import config, dashboard
 
 
 class DeviceLocationTests(unittest.TestCase):
@@ -39,4 +39,8 @@ class DeviceLocationTests(unittest.TestCase):
                 "unreachable": 0,
             }]})
             geocode.assert_called_once_with("Los Angeles")
-            check.assert_called_once_with(["10.0.0.1", "10.0.0.2"])
+            check.assert_called_once_with(
+                ["10.0.0.1", "10.0.0.2"],
+                timeout_seconds=config.PING_TIMEOUT_SECONDS,
+                max_concurrent=config.PING_CONCURRENCY,
+            )
