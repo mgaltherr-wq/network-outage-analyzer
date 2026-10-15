@@ -296,6 +296,10 @@ def update_settings(payload: SettingsUpdateRequest):
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    # Lookups made before the change (e.g. with no OpenWeather key, which
+    # caches None for every location) would otherwise stick until a restart.
+    _cached_geocode.cache_clear()
+
     return {"settings": updated}
 
 
@@ -438,55 +442,59 @@ def list_device_locations():
 
     markers = []
     for group in grouped.values():
+        # A location that can't be geocoded (no OpenWeather key, no internet,
+        # unknown place name) still gets its outage judged and ticketed; it
+        # only loses its map pin and the weather/power cause assessment.
         try:
             coordinates = _cached_geocode(group["location"])
         except Exception:
             coordinates = None
-        if coordinates:
-            status_by_ip = _device_reachability(group["devices"])
-            reachable = [ip for ip in group["devices"] if status_by_ip[ip] is True]
-            unreachable = [ip for ip in group["devices"] if status_by_ip[ip] is False]
-            pending = len(group["devices"]) - len(reachable) - len(unreachable)
-            if pending:
-                # Don't judge (or ticket) a site on a partial picture right
-                # after startup or an add; the next sweep fills it in.
-                status = "pending"
-            elif not unreachable:
-                status = "up"
-            elif not reachable:
-                status = "down"
-            else:
-                status = "partial"
 
-            marker = {
-                **group,
-                **coordinates,
-                "status": status,
-                "reachable": len(reachable),
-                "unreachable": len(unreachable),
-            }
+        status_by_ip = _device_reachability(group["devices"])
+        reachable = [ip for ip in group["devices"] if status_by_ip[ip] is True]
+        unreachable = [ip for ip in group["devices"] if status_by_ip[ip] is False]
+        pending = len(group["devices"]) - len(reachable) - len(unreachable)
+        if pending:
+            # Don't judge (or ticket) a site on a partial picture right
+            # after startup or an add; the next sweep fills it in.
+            status = "pending"
+        elif not unreachable:
+            status = "up"
+        elif not reachable:
+            status = "down"
+        else:
+            status = "partial"
 
-            percent_down = len(unreachable) / len(group["devices"])
-            if pending:
-                pass
-            elif percent_down >= correlator.OUTAGE_THRESHOLD:
-                confidence = _assess_location_confidence(coordinates)
-                if confidence:
-                    marker["confidence"] = confidence
+        marker = {
+            **group,
+            **(coordinates or {}),
+            "geocoded": bool(coordinates),
+            "status": status,
+            "reachable": len(reachable),
+            "unreachable": len(unreachable),
+        }
 
-                ticket = _ensure_outage_ticket(
-                    group["location"], group["devices"], percent_down, confidence
-                )
-                if ticket:
-                    marker["ticket"] = ticket
-                try:
-                    _history.annotate_outage(group["location"], confidence, ticket)
-                except Exception:
-                    log.exception("Could not record outage details for %s", group["location"])
-            else:
-                _active_outage_tickets.pop(group["location"].casefold(), None)
+        percent_down = len(unreachable) / len(group["devices"])
+        if pending:
+            pass
+        elif percent_down >= correlator.OUTAGE_THRESHOLD:
+            confidence = _assess_location_confidence(coordinates) if coordinates else None
+            if confidence:
+                marker["confidence"] = confidence
 
-            markers.append(marker)
+            ticket = _ensure_outage_ticket(
+                group["location"], group["devices"], percent_down, confidence
+            )
+            if ticket:
+                marker["ticket"] = ticket
+            try:
+                _history.annotate_outage(group["location"], confidence, ticket)
+            except Exception:
+                log.exception("Could not record outage details for %s", group["location"])
+        else:
+            _active_outage_tickets.pop(group["location"].casefold(), None)
+
+        markers.append(marker)
 
     return {"locations": markers}
 

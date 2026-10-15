@@ -45,6 +45,7 @@ class DeviceLocationTests(unittest.TestCase):
                 "location": "Los Angeles",
                 "devices": ["10.0.0.1", "10.0.0.2"],
                 **coordinates,
+                "geocoded": True,
                 "status": "up",
                 "reachable": 2,
                 "unreachable": 0,
@@ -54,4 +55,38 @@ class DeviceLocationTests(unittest.TestCase):
                 ["10.0.0.1", "10.0.0.2"],
                 timeout_seconds=config.PING_TIMEOUT_SECONDS,
                 max_concurrent=config.PING_CONCURRENCY,
+            )
+
+
+    def test_outage_is_reported_and_ticketed_when_location_cannot_be_geocoded(self):
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "ip_addresses.json"
+            path.write_text(json.dumps([
+                {"ip_address": "10.0.0.1", "location": "Los Angeles", "location_source": "manual"},
+                {"ip_address": "10.0.0.2", "location": "Los Angeles", "location_source": "manual"},
+            ]), encoding="utf-8")
+            ticket = {"sys_id": "abc123", "number": "INC0001", "action": "created"}
+            with patch("app.ip_inventory.DEFAULT_IP_LIST_PATH", path), patch(
+                "app.dashboard._cached_geocode", return_value=None
+            ), patch(
+                "app.dashboard.check_devices", return_value=([], ["10.0.0.1", "10.0.0.2"])
+            ), patch(
+                "app.dashboard._assess_location_confidence"
+            ) as assess, patch(
+                "app.dashboard.servicenow.search_or_create_outage_incident", return_value=ticket
+            ) as create_ticket:
+                result = dashboard.list_device_locations()
+
+            self.assertEqual(result, {"locations": [{
+                "location": "Los Angeles",
+                "devices": ["10.0.0.1", "10.0.0.2"],
+                "geocoded": False,
+                "status": "down",
+                "reachable": 0,
+                "unreachable": 2,
+                "ticket": ticket,
+            }]})
+            assess.assert_not_called()
+            create_ticket.assert_called_once_with(
+                "Los Angeles", ["10.0.0.1", "10.0.0.2"], 1.0, None
             )

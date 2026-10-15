@@ -67,7 +67,9 @@
           <div><span class="conf-label">Weather</span>${escapeHtml(site.confidence.weather.confidence)} — ${escapeHtml(site.confidence.weather.detail)}</div>
           <div><span class="conf-label">Network outage</span>${escapeHtml(site.confidence.network.confidence)} — ${escapeHtml(site.confidence.network.detail)}</div>
           <div><span class="conf-label">Power outage</span>${escapeHtml(site.confidence.power.confidence)} — ${escapeHtml(site.confidence.power.detail)}</div>
-        ` : '<div>Cause assessment unavailable.</div>';
+        ` : site.geocoded === false
+          ? '<div>Cause assessment unavailable: this location couldn\'t be found on the map. Check the OpenWeather API key in Settings and that this machine can reach the internet.</div>'
+          : '<div>Cause assessment unavailable.</div>';
         const ticket = site.ticket ? `<div class="outage-ticket">ServiceNow: ${site.ticket.action === 'created' ? 'created' : 'updated'} ${escapeHtml(site.ticket.number)}</div>` : '';
         return `
           <div class="outage-item">
@@ -93,6 +95,7 @@
         renderOutages(data.locations);
         deviceMarkerLayer.clearLayers();
         data.locations.forEach(site => {
+          if (!site.geocoded) return;
           const region = [site.state, site.country].filter(Boolean).join(', ');
           const addresses = site.devices.map(escapeHtml).join('<br>');
           const detail = region ? `<br>${escapeHtml(region)}` : '';

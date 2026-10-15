@@ -284,6 +284,14 @@ class SettingsApiTests(unittest.TestCase):
         self.assertTrue(updated["WEATHER_API_KEY"]["is_set"])
         self.assertEqual(config_module.WEATHER_API_KEY, "updated-key")
 
+    def test_put_settings_clears_cached_geocodes(self):
+        with patch("app.dashboard.geocode_location", return_value=None) as geocode:
+            dashboard_module._cached_geocode("Los Angeles")
+            self.client.put("/api/settings", json={"values": {"WEATHER_API_KEY": "new-key"}})
+            dashboard_module._cached_geocode("Los Angeles")
+
+        self.assertEqual(geocode.call_count, 2)
+
     def test_put_settings_rejects_unknown_key(self):
         response = self.client.put(
             "/api/settings", json={"values": {"NOT_A_SETTING": "x"}}
